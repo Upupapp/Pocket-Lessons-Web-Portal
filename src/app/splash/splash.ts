@@ -69,7 +69,7 @@ const STEPS = [
         </g>
 
         <!-- Teacher's voice lesson -->
-        <g class="lesson" transform="translate(130 140)">
+        <g transform="translate(130 140)"><g class="lesson">
           <rect x="-74" y="-74" width="148" height="148" rx="30" fill="#0F4A44" />
           <rect x="-44" y="-56" width="88" height="112" rx="14" fill="#FFF9ED" />
           <rect x="18" y="-56" width="26" height="18" rx="6" fill="#F6CC59" />
@@ -90,10 +90,10 @@ const STEPS = [
             <rect x="-5.5" y="-11" width="11" height="16" rx="5.5" fill="#163C3B" />
             <path d="M-9 1 a9 9 0 0 0 18 0 M0 10 v5" stroke="#163C3B" stroke-width="2.6" fill="none" stroke-linecap="round" />
           </g>
-        </g>
+        </g></g>
 
         <!-- Family phone -->
-        <g class="phone" transform="translate(630 140)">
+        <g transform="translate(630 140)"><g class="phone">
           <rect x="-50" y="-88" width="100" height="176" rx="22" fill="#0B2F2C" stroke="#F3E9D2" stroke-width="5" />
           <rect x="-40" y="-76" width="80" height="152" rx="14" fill="url(#screen)" />
           <rect x="-16" y="-82" width="32" height="6" rx="3" fill="#F3E9D2" opacity=".7" />
@@ -104,12 +104,12 @@ const STEPS = [
             <rect x="-10" y="-4" width="14" height="4" rx="2" fill="#146B60" />
             <rect x="-10" y="5" width="20" height="4" rx="2" fill="#146B60" opacity=".55" />
             <rect x="-10" y="14" width="16" height="4" rx="2" fill="#146B60" opacity=".55" />
-            <g class="check" transform="translate(20 30)">
+            <g transform="translate(20 30)"><g class="check">
               <circle r="11" fill="#F6CC59" />
               <path d="M-5 0 l3.5 3.5 l6.5 -7" stroke="#163C3B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-            </g>
+            </g></g>
           </g>
-        </g>
+        </g></g>
       </svg>
 
       <div class="brand">
@@ -160,12 +160,12 @@ const STEPS = [
     .packets g { opacity: 0; animation: fade-in .15s linear .9s both; }
     .packets g:nth-child(2) { animation-delay: 1.25s; } .packets g:nth-child(3) { animation-delay: 1.55s; }
 
-    .lesson { animation: pop .6s cubic-bezier(.2, .9, .3, 1.3) .1s both; transform-box: fill-box; }
+    .lesson { animation: pop .6s cubic-bezier(.2, .9, .3, 1.3) .1s both; transform-box: fill-box; transform-origin: center; }
     .wave rect { transform-box: fill-box; transform-origin: center; animation: talk .9s ease-in-out infinite; }
     .wave rect:nth-child(2) { animation-delay: -.15s; } .wave rect:nth-child(3) { animation-delay: -.45s; }
     .wave rect:nth-child(4) { animation-delay: -.3s; } .wave rect:nth-child(5) { animation-delay: -.6s; }
     .wave rect:nth-child(6) { animation-delay: -.75s; }
-    .phone { animation: pop .6s cubic-bezier(.2, .9, .3, 1.3) .25s both; }
+    .phone { animation: pop .6s cubic-bezier(.2, .9, .3, 1.3) .25s both; transform-box: fill-box; transform-origin: center; }
     .received { opacity: 0; transform-box: fill-box; transform-origin: center; animation: arrive .55s cubic-bezier(.2, .9, .3, 1.4) 2.75s both; }
     .check { opacity: 0; transform-box: fill-box; transform-origin: center; animation: arrive .4s cubic-bezier(.2, .9, .3, 1.6) 3.35s both; }
 
