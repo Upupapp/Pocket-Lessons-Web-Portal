@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { uid } from '../core/models';
 import { media } from '../core/storage';
 
@@ -87,10 +87,11 @@ export class VoiceRecorder {
   private startedAt = 0;
 
   constructor() {
+    // Track only the audio id. setUrl reads url(), so it must run untracked or the effect clears itself in a loop.
     effect(() => {
       const id = this.audioId();
-      this.setUrl('');
-      if (id) media.get(id).then((blob) => blob && this.setUrl(URL.createObjectURL(blob)));
+      untracked(() => this.setUrl(''));
+      if (id) media.get(id).then((blob) => blob && id === this.audioId() && this.setUrl(URL.createObjectURL(blob)));
     });
     inject(DestroyRef).onDestroy(() => {
       this.cleanup();

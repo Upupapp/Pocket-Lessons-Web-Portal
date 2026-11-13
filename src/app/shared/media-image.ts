@@ -1,4 +1,4 @@
-import { Component, DestroyRef, effect, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
 import { media } from '../core/storage';
 
 /** Shows a picture stored in IndexedDB. */
@@ -13,10 +13,11 @@ export class MediaImage {
   readonly url = signal('');
 
   constructor() {
+    // Track only the media id; swap() reads url(), so run it untracked to avoid a clear-and-reload loop.
     effect(() => {
       const id = this.mediaId();
-      this.swap('');
-      if (id) media.get(id).then((b) => b && this.swap(URL.createObjectURL(b)));
+      untracked(() => this.swap(''));
+      if (id) media.get(id).then((b) => b && id === this.mediaId() && this.swap(URL.createObjectURL(b)));
     });
     inject(DestroyRef).onDestroy(() => this.swap(''));
   }
