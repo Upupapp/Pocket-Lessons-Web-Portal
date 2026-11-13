@@ -1,0 +1,158 @@
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Assess</p>
+    <h1>Check a child's reading</h1>
+    <p>Place a child on a reading level, or time their reading of a lesson. Results update their level and history.</p>
+  </div>
+</div>
+
+@if (saved(); as s) {
+  <section class="card done">
+    <div class="done-icon" aria-hidden="true">✓</div>
+    <div>
+      <h2>Saved for {{ learner()?.name }}</h2>
+      <p>
+        Reading level:
+        @if (s.previousLevel && s.previousLevel !== s.level) {
+          <span class="pill pill-grey">{{ s.previousLevel }}</span> → <span class="pill" [class.pill-teal]="direction(s) === 'up'" [class.pill-sun]="direction(s) === 'down'">{{ s.level }}</span>
+          @if (direction(s) === 'up') { <strong class="up">Moved up a level.</strong> }
+        } @else {
+          <span class="pill pill-teal">{{ s.level }}</span> (no change)
+        }
+      </p>
+      @if (s.type === 'fluency') {
+        <p class="muted">{{ s.accuracy }}% accuracy · {{ s.wcpm }} words correct per minute · {{ s.seconds }} s</p>
+      }
+      <div class="row">
+        <a class="btn btn-ghost" [routerLink]="['/app/learners', s.learnerId]">See {{ learner()?.name?.split(' ')?.[0] }}'s history</a>
+        <button type="button" class="btn btn-primary" (click)="checkAnother()">Check another child</button>
+      </div>
+    </div>
+  </section>
+} @else {
+  <div class="grid">
+    <section class="card who">
+      <h2>1. Choose the child</h2>
+      <label class="field">
+        <span class="sr-only">Learner</span>
+        <select class="select" [ngModel]="learnerId()" (ngModelChange)="choose($event)">
+          <option value="">Select a learner…</option>
+          @for (l of data.learners(); track l.id) {
+            <option [value]="l.id">{{ l.name }} · Grade {{ l.grade }} · {{ l.level }}</option>
+          }
+        </select>
+      </label>
+      @if (learner(); as l) {
+        <div class="learner">
+          <span class="avatar" aria-hidden="true">{{ l.name.charAt(0) }}</span>
+          <div>
+            <strong>{{ l.name }}</strong>
+            <span class="small muted">Grade {{ l.grade }} · now at <b>{{ l.level }}</b></span>
+            <span class="small muted">
+              @if (lastCheck(); as c) { Last check {{ daysSince(c.date) }} days ago } @else { Never checked }
+            </span>
+          </div>
+        </div>
+      }
+
+      <h2 class="mt">2. Choose the check</h2>
+      <div class="modes">
+        <button type="button" class="mode" [class.on]="mode() === 'placement'" (click)="setMode('placement')">
+          <strong>Reading-level check</strong>
+          <span>Place the child on a TaRL level. About 3 minutes.</span>
+        </button>
+        <button type="button" class="mode" [class.on]="mode() === 'fluency'" (click)="setMode('fluency')">
+          <strong>Timed reading</strong>
+          <span>Child reads a lesson aloud; tap missed words. Accuracy and speed.</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="card work" [class.disabled]="!learner()">
+      @if (!learner()) {
+        <div class="empty">Choose a child first.</div>
+      } @else if (mode() === 'placement') {
+        <!-- TaRL placement -->
+        <div class="trail">
+          @for (p of path(); track $index) {
+            <span class="pill" [class.pill-teal]="p.yes" [class.pill-grey]="!p.yes">{{ tool[p.node].title }}: {{ p.yes ? 'yes' : 'no' }}</span>
+          }
+        </div>
+        @if (placed(); as lv) {
+          <div class="placed">
+            <p class="eyebrow">Result</p>
+            <h2 class="serif big">{{ lv }}</h2>
+            <p class="muted">{{ levelHint[lv] }}</p>
+            <button type="button" class="link" (click)="restartPlacement()">Start the check again</button>
+          </div>
+        } @else {
+          <p class="eyebrow">Show the child: {{ tool[node()].title }}</p>
+          <div class="reading-card" lang="fil">{{ tool[node()].show }}</div>
+          <p class="ask">{{ tool[node()].ask }}</p>
+          <div class="row">
+            <button type="button" class="btn btn-primary" (click)="answer(true)">Yes</button>
+            <button type="button" class="btn btn-ghost" (click)="answer(false)">No</button>
+          </div>
+          <p class="small muted">Sample reading cards. AHA will replace them with its official TaRL tool.</p>
+        }
+      } @else {
+        <!-- Timed reading -->
+        <label class="field">
+          <span>Passage</span>
+          <select class="select" [ngModel]="sourceId()" (ngModelChange)="pickSource($event)" [disabled]="phase() === 'reading'">
+            <option value="">Type or paste a passage…</option>
+            @for (s of sources(); track s.id) { <option [value]="s.id">{{ s.label }}</option> }
+          </select>
+        </label>
+        @if (!sourceId() && phase() === 'ready') {
+          <textarea class="textarea" [ngModel]="passage()" (ngModelChange)="passage.set($event)" placeholder="Type the text the child will read" rows="3"></textarea>
+        }
+
+        @if (words().length) {
+          <div class="timer-row">
+            @if (phase() === 'ready') {
+              <button type="button" class="btn btn-primary" (click)="startReading()">Start timer</button>
+              <span class="small muted">Start when the child begins reading. Tap any word they miss or skip.</span>
+            } @else if (phase() === 'reading') {
+              <span class="clock" aria-live="off">{{ seconds() }} s</span>
+              <button type="button" class="btn btn-danger" (click)="stopReading()">Stop</button>
+              <span class="small muted">Tap missed words. Tap again to undo.</span>
+            } @else {
+              <span class="clock">{{ seconds() }} s</span>
+              <span class="small muted">You can still correct missed words below.</span>
+            }
+          </div>
+          <p class="passage" [class.live]="phase() !== 'ready'" lang="fil">
+            @for (w of words(); track $index) {
+              <button type="button" class="w" [class.miss]="missed().has($index)" (click)="toggleWord($index)" [disabled]="phase() === 'ready'" [attr.aria-pressed]="missed().has($index)">{{ w }}</button>
+            }
+          </p>
+          @if (phase() === 'done') {
+            <div class="stats">
+              <div><strong>{{ accuracy() }}%</strong><span>accuracy</span></div>
+              <div><strong>{{ wcpm() }}</strong><span>words correct per minute</span></div>
+              <div><strong>{{ correct() }}/{{ words().length }}</strong><span>words read correctly</span></div>
+            </div>
+            <p><span class="pill {{ fluencyAdvice().tone }}">{{ fluencyAdvice().text }}</span></p>
+          }
+        }
+      }
+
+      @if (canSave()) {
+        <div class="save">
+          <label class="field">
+            <span>Reading level to record</span>
+            <select class="select" [ngModel]="resultLevel()" (ngModelChange)="resultLevel.set($event)">
+              @for (lv of levels; track lv) { <option [value]="lv">{{ lv }}</option> }
+            </select>
+          </label>
+          <label class="field grow">
+            <span>Note (optional)</span>
+            <input class="input" [(ngModel)]="note" placeholder="e.g. Paused on longer words" maxlength="200" />
+          </label>
+          <button type="button" class="btn btn-primary" (click)="save()">Save check</button>
+        </div>
+      }
+    </section>
+  </div>
+}
