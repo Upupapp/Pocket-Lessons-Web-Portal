@@ -259,11 +259,12 @@ export class DataService {
     ];
   }
 
+  /** Publishing locks a version. Editing a published lesson returns it to draft; publishing again makes the next version. */
   publish(lesson: Lesson): Lesson {
     const published: Lesson = {
       ...lesson,
       status: 'published',
-      version: lesson.status === 'published' ? lesson.version + 1 : lesson.version,
+      version: lesson.publishedAt ? lesson.version + 1 : lesson.version,
       publishedAt: new Date().toISOString(),
     };
     this.saveLesson(published);
