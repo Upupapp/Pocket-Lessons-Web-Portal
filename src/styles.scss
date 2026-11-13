@@ -95,7 +95,7 @@ p { margin: 0; }
 
 // Forms
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field > span, .label { font-weight: 700; font-size: 14px; }
+.field > span:not(.hint), .label { font-weight: 700; font-size: 14px; }
 .hint { font-size: 13px; color: var(--muted); }
 .input, .select, .textarea {
   width: 100%; min-height: 44px; padding: 10px 14px;
