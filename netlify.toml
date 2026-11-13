@@ -1,0 +1,22 @@
+# Netlify settings for the Pocket Lessons teacher web portal.
+[build]
+  command = "npm run build"
+  publish = "dist/pocket-lessons-portal/browser"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+# Send every address to the Angular app so links like /app/lessons/new work after a refresh.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Pilot preview with sample data: keep it out of search engines.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "microphone=(self), camera=(), geolocation=()"
