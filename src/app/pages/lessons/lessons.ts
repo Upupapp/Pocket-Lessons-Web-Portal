@@ -1,9 +1,9 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { DataService } from '../../core/data.service';
-import { LEVELS, Level, PACK_LIMIT_BYTES, formatBytes } from '../../core/models';
+import { LEVELS, Lesson, Level, PACK_LIMIT_BYTES, Unit, formatBytes } from '../../core/models';
 
 type Filter = 'all' | 'draft' | 'published';
 
@@ -18,8 +18,60 @@ type Filter = 'all' | 'draft' | 'published';
         <h1>Lessons</h1>
         <p>Short voice lessons for each reading level. Drafts save as you work.</p>
       </div>
-      <a class="btn btn-primary" routerLink="/app/lessons/new">+ New lesson</a>
+      <div class="head-actions">
+        <a class="btn btn-ghost" routerLink="/app/lessons/new">+ New lesson</a>
+        <a class="btn btn-primary" routerLink="/app/lessons/import">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          Import a lesson file
+        </a>
+      </div>
     </div>
+
+    @if (justCreated(); as u) {
+      <div class="toast" role="status">
+        <strong>"{{ u.title }}" is ready as drafts.</strong> Next: open Part 1 and record your voice on each page.
+      </div>
+    }
+
+    @if (shownUnits().length) {
+      <h2 class="section-title">Story units</h2>
+      <div class="units">
+        @for (u of shownUnits(); track u.unit.id) {
+          <section class="card unit" [class.fresh]="u.unit.id === unit()">
+            <div class="unit-head">
+              <div>
+                <p class="eyebrow">{{ u.unit.level }} · {{ u.unit.language }}@if (u.unit.sourceLabel) { · {{ u.unit.sourceLabel }} }</p>
+                <h3>{{ u.unit.title }}</h3>
+                <p class="small muted">
+                  @if (u.unit.author) { by {{ u.unit.author }} · }
+                  {{ u.lessons.length }} circles · {{ u.recorded }} of {{ u.pages }} pages recorded · {{ u.published }} published
+                </p>
+              </div>
+              <button type="button" class="btn btn-danger btn-sm" (click)="removeUnit(u.unit)">Delete unit</button>
+            </div>
+            <div class="meter wide"><span [style.width.%]="u.pages ? (u.recorded / u.pages) * 100 : 0"></span></div>
+            <ol class="trail">
+              @for (l of u.lessons; track l.id; let i = $index) {
+                <li [style.--lift.px]="lift(i)">
+                  <a [routerLink]="['/app/lessons', l.id]" class="stop" [class.cp]="l.kind === 'checkpoint'" [class.live]="l.status === 'published'" [class.ready]="isRecorded(l)">
+                    <span class="disc">
+                      @if (l.kind === 'checkpoint') {
+                        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="currentColor" /></svg>
+                      } @else {
+                        {{ i + 1 }}
+                      }
+                    </span>
+                    <span class="cap">{{ l.kind === 'checkpoint' ? 'Checkpoint' : 'Part ' + (i + 1) }}</span>
+                    <span class="state">{{ stateLabel(l) }}</span>
+                  </a>
+                </li>
+              }
+            </ol>
+          </section>
+        }
+      </div>
+      <h2 class="section-title">Single lessons</h2>
+    }
 
     <div class="bar">
       <div class="seg" role="tablist" aria-label="Filter by status">
@@ -70,6 +122,28 @@ type Filter = 'all' | 'draft' | 'published';
     }
   `,
   styles: `
+    .head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .toast { margin-bottom: 18px; padding: 12px 16px; border-radius: var(--r-md); background: var(--mint); color: var(--teal-dark); }
+    .section-title { font-family: var(--serif); font-size: 20px; margin: 4px 0 12px; }
+    .units { display: grid; gap: 16px; margin-bottom: 28px; }
+    .unit { display: grid; gap: 12px; }
+    .unit.fresh { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(20, 107, 96, .15), var(--shadow); }
+    .unit-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .unit h3 { font-family: var(--serif); font-size: 24px; margin: 2px 0; }
+    .trail { list-style: none; margin: 6px 0 0; padding: 22px 4px 6px; display: flex; gap: 6px; overflow-x: auto; background: linear-gradient(180deg, #f4fbf2, transparent); border-radius: var(--r-md); }
+    .trail li { flex: 1 0 108px; display: flex; justify-content: center; transform: translateY(var(--lift, 0)); position: relative; }
+    .trail li:not(:last-child)::after { content: ""; position: absolute; top: 30px; left: calc(50% + 36px); right: calc(-50% + 36px); border-top: 4px dotted #c9d6d2; }
+    .stop { display: grid; justify-items: center; gap: 4px; text-decoration: none; color: inherit; text-align: center; }
+    .disc { width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; font: 700 22px var(--font); background: #e8e1d1; color: var(--muted); box-shadow: inset 0 -6px 0 rgba(0,0,0,.12); transition: transform .12s; }
+    .stop:hover .disc { transform: translateY(-3px); }
+    .stop.ready .disc { background: #1d8577; color: #fff; }
+    .stop.live .disc { background: var(--teal); color: #fff; }
+    .stop.cp .disc { background: var(--sun-soft); color: #c99b2e; }
+    .stop.cp.ready .disc, .stop.cp.live .disc { background: var(--sun); color: #8a5a00; }
+    .cap { font-weight: 700; font-size: 14px; }
+    .state { font-size: 12px; color: var(--muted); }
+    .meter.wide { height: 8px; }
+    @media (max-width: 700px) { .unit-head { flex-direction: column; } }
     .bar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
     .seg { display: inline-flex; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
     .seg button { border: 0; background: none; border-radius: 999px; padding: 8px 14px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
@@ -93,6 +167,8 @@ type Filter = 'all' | 'draft' | 'published';
 })
 export class Lessons {
   readonly data = inject(DataService);
+  /** Set after an import, to highlight the new unit. */
+  readonly unit = input<string>();
   readonly levels = LEVELS;
   readonly limit = PACK_LIMIT_BYTES;
   readonly fmt = formatBytes;
@@ -105,10 +181,31 @@ export class Lessons {
   readonly level = signal<Level | ''>('');
   readonly q = signal('');
 
+  readonly justCreated = computed(() => (this.unit() ? this.data.unit(this.unit()!) : undefined));
+
+  readonly shownUnits = computed(() => {
+    const q = this.q().trim().toLowerCase();
+    return this.data
+      .units()
+      .filter((u) => !this.level() || u.level === this.level())
+      .filter((u) => !q || `${u.title} ${u.author ?? ''}`.toLowerCase().includes(q))
+      .map((unit) => {
+        const lessons = this.data.unitLessons(unit.id);
+        return {
+          unit,
+          lessons,
+          pages: lessons.reduce((s, l) => s + l.pages.length, 0),
+          recorded: lessons.reduce((s, l) => s + this.recorded(l.pages), 0),
+          published: lessons.filter((l) => l.status === 'published').length,
+        };
+      });
+  });
+
   readonly shown = computed(() => {
     const q = this.q().trim().toLowerCase();
     return this.data
       .lessons()
+      .filter((l) => !this.inUnit(l))
       .filter((l) => this.filter() === 'all' || l.status === this.filter())
       .filter((l) => !this.level() || l.level === this.level())
       .filter((l) => !q || `${l.title} ${l.objective}`.toLowerCase().includes(q))
@@ -116,7 +213,31 @@ export class Lessons {
   });
 
   count(f: Filter): number {
-    return this.data.lessons().filter((l) => f === 'all' || l.status === f).length;
+    return this.data.lessons().filter((l) => !this.inUnit(l) && (f === 'all' || l.status === f)).length;
+  }
+
+  private inUnit(l: Lesson): boolean {
+    return !!l.unitId && !!this.data.unit(l.unitId);
+  }
+
+  /** A gentle zig-zag, like a path of stepping stones. */
+  lift(i: number): number {
+    return [0, -12, 4, -8][i % 4];
+  }
+
+  isRecorded(l: Lesson): boolean {
+    return l.pages.length > 0 && l.pages.every((p) => p.audioId);
+  }
+
+  stateLabel(l: Lesson): string {
+    if (l.status === 'published') return 'Published';
+    if (this.isRecorded(l)) return 'Recorded';
+    return `${this.recorded(l.pages)}/${l.pages.length} recorded`;
+  }
+
+  async removeUnit(u: Unit): Promise<void> {
+    if (!confirm(`Delete the unit "${u.title}" and all its lessons and recordings? This cannot be undone.`)) return;
+    await this.data.deleteUnit(u.id);
   }
 
   recorded(pages: { audioId?: string }[]): number {
