@@ -1,0 +1,197 @@
+<a routerLink="/app/lessons" class="back">← All lessons</a>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Create · Import</p>
+    <h1>Turn a lesson file into a learning path</h1>
+    <p>Upload a reading lesson with a story, questions and an answer key. The portal splits the story into short lessons and turns the questions into a checkpoint.</p>
+  </div>
+</div>
+
+@if (!parsed()) {
+  <div class="start">
+    <section class="card upload">
+      <div class="tabs" role="tablist" aria-label="How to add the lesson">
+        <button type="button" role="tab" [attr.aria-selected]="mode() === 'file'" [class.on]="mode() === 'file'" (click)="mode.set('file')">Upload a file</button>
+        <button type="button" role="tab" [attr.aria-selected]="mode() === 'paste'" [class.on]="mode() === 'paste'" (click)="mode.set('paste')">Paste the text</button>
+      </div>
+
+      @if (mode() === 'file') {
+        <label
+          class="drop"
+          [class.over]="dragging()"
+          [class.busy]="busy()"
+          (dragover)="$event.preventDefault(); dragging.set(true)"
+          (dragleave)="dragging.set(false)"
+          (drop)="onDrop($event)"
+        >
+          <input type="file" accept=".pdf,.txt,application/pdf,text/plain" class="sr-only" (change)="onFile($event)" [disabled]="busy()" />
+          <svg class="art" width="260" height="120" viewBox="0 0 260 120" aria-hidden="true">
+            <rect x="10" y="8" width="74" height="96" rx="10" fill="#fff" stroke="#E8E1D1" stroke-width="3" />
+            <rect x="22" y="24" width="40" height="7" rx="3.5" fill="#146B60" />
+            <rect x="22" y="40" width="50" height="5" rx="2.5" fill="#9DB3AE" /><rect x="22" y="51" width="46" height="5" rx="2.5" fill="#9DB3AE" />
+            <rect x="22" y="62" width="50" height="5" rx="2.5" fill="#9DB3AE" /><rect x="22" y="78" width="30" height="5" rx="2.5" fill="#F6CC59" />
+            <rect x="22" y="88" width="24" height="5" rx="2.5" fill="#F6CC59" />
+            <path d="M98 56 H128" stroke="#163C3B" stroke-width="5" stroke-linecap="round" />
+            <path d="M120 46 L130 56 L120 66" stroke="#163C3B" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M152 92 C170 92 170 70 186 70 C202 70 202 46 218 46 C232 46 234 28 246 26" stroke="#9DB3AE" stroke-width="4" fill="none" stroke-dasharray="2 9" stroke-linecap="round" />
+            <circle cx="152" cy="92" r="14" fill="#146B60" /><circle cx="186" cy="70" r="14" fill="#146B60" />
+            <circle cx="218" cy="46" r="14" fill="#F6CC59" />
+            <path d="M246 14 l4 8 9 1.3 -6.5 6.3 1.5 9 -8 -4.3 -8 4.3 1.5 -9 -6.5 -6.3 9 -1.3z" fill="#C99B2E" />
+          </svg>
+          @if (busy()) {
+            <strong>Reading {{ fileName() }}…</strong>
+            <span class="muted small">This takes a few seconds.</span>
+          } @else {
+            <strong>Drop the lesson PDF here, or click to choose it</strong>
+            <span class="muted small">PDF or .txt · read in this browser, nothing is uploaded</span>
+          }
+        </label>
+      } @else {
+        <label class="field">
+          <span>Paste the story, the questions and the answer key</span>
+          <textarea class="textarea paste" [ngModel]="pasted()" (ngModelChange)="pasted.set($event)" rows="12"
+            placeholder="Story&#10;HATING KAPATID&#10;(Author)&#10;&#10;First paragraph…&#10;&#10;Comprehension Questions&#10;1. Question?&#10;A) …&#10;B) …&#10;&#10;Key to Correction&#10;1. B"></textarea>
+          <span class="hint">Leave a blank line between paragraphs.</span>
+        </label>
+        <button type="button" class="btn btn-primary" (click)="readPasted()">Read the text</button>
+      }
+      @if (error()) { <p class="error-text" role="alert">{{ error() }}</p> }
+    </section>
+
+    <aside class="card looks">
+      <h2>What the portal looks for</h2>
+      <ol class="finds">
+        <li><span class="tag">Story</span> The title, the author and each paragraph</li>
+        <li><span class="tag">Comprehension Questions</span> Numbered questions with A to D choices</li>
+        <li><span class="tag">Key to Correction</span> The right letter for each question</li>
+      </ol>
+      <p class="small muted">This matches the AHA lesson template. Scanned pages (pictures of text) can't be read yet; paste the text for those.</p>
+    </aside>
+  </div>
+} @else {
+  @if (parsed(); as p) {
+    <div class="grid">
+      <div class="col">
+        <section class="card found">
+          <div class="found-head">
+            <pl-coach mood="cheer" [size]="76" />
+            <div>
+              <p class="eyebrow">Found in {{ fileName() }}</p>
+              <label class="sr-only" for="unit-title">Unit title</label>
+              <input id="unit-title" class="title" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="Story title" maxlength="60" />
+              <p class="muted">{{ p.author ? 'by ' + p.author : 'No author found' }}@if (p.label) { · {{ p.label }} }</p>
+            </div>
+          </div>
+          <div class="stats">
+            <div><strong>{{ p.paragraphs.length }}</strong><span>paragraphs</span></div>
+            <div><strong>{{ totalWords() }}</strong><span>words</span></div>
+            <div><strong>{{ p.questions.length }}</strong><span>questions</span></div>
+            <div [class.warn]="keyed() < p.questions.length"><strong>{{ keyed() }} / {{ p.questions.length }}</strong><span>answers in the key</span></div>
+          </div>
+          @for (w of p.warnings; track w) { <p class="warning" role="alert">{{ w }}</p> }
+        </section>
+
+        <section class="card">
+          <h2>Settings</h2>
+          <div class="settings">
+            <label class="field">
+              <span>Reading level</span>
+              <select class="select" [ngModel]="level()" (ngModelChange)="level.set($event)">
+                @for (lv of levels; track lv) { <option [value]="lv">{{ lv }}</option> }
+              </select>
+              <span class="hint">{{ levelHint[level()] }}</span>
+            </label>
+            <label class="field">
+              <span>Language</span>
+              <select class="select" [ngModel]="language()" (ngModelChange)="language.set($event)">
+                @for (lang of languages; track lang) { <option [value]="lang">{{ lang }}</option> }
+              </select>
+            </label>
+            <div class="field wide">
+              <span class="label" id="count-label">Short lessons</span>
+              <div class="seg" role="radiogroup" aria-labelledby="count-label">
+                @for (n of counts(); track n) {
+                  <button type="button" role="radio" [attr.aria-checked]="count() === n" [class.on]="count() === n" (click)="count.set(n)">
+                    {{ n }}@if (n === suggested()) { <small>suggested</small> }
+                  </button>
+                }
+              </div>
+              <span class="hint">About {{ perLesson }} words per lesson keeps each one to 5–10 minutes for a struggling reader.</span>
+            </div>
+          </div>
+        </section>
+
+        @if (plan(); as pl) {
+          <section class="card">
+            <h2>The learning path</h2>
+            <p class="small muted">Children see one circle at a time. Each circle opens when the one before is done.</p>
+            <ol class="path">
+              @for (l of pl.lessons; track $index; let i = $index) {
+                <li class="node">
+                  <span class="dot" [class.alt]="i % 2 === 1">{{ i + 1 }}</span>
+                  <div class="node-body">
+                    <div class="node-top">
+                      <strong>{{ l.title }}</strong>
+                      <span class="pill pill-grey">{{ l.paragraphs.length }} pages · {{ l.words }} words · {{ l.minutes }} min</span>
+                    </div>
+                    <p class="quote">{{ excerpt(l.paragraphs[0]) }}</p>
+                    @if (l.reviewWords.length) {
+                      <div class="words">
+                        <span class="small muted">Practice words</span>
+                        @for (w of l.reviewWords; track w) { <span class="word">{{ w }}</span> }
+                      </div>
+                    }
+                    @if (l.practice.length) {
+                      <p class="small muted">{{ l.practice.length }} “tap the word you hear” activities, made automatically</p>
+                    }
+                  </div>
+                </li>
+              }
+              <li class="node">
+                <span class="dot star" aria-label="Checkpoint">
+                  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="currentColor" /></svg>
+                </span>
+                <div class="node-body">
+                  <div class="node-top">
+                    <strong>{{ pl.checkpoint.title }}</strong>
+                    <span class="pill pill-sun">Pass: {{ passNeeded() }} of {{ pl.checkpoint.questions.length }} right</span>
+                  </div>
+                  <p class="small muted">AHA's questions, kept for the end so they show real understanding. Passing flags the child as ready for an in-person check; it never moves them up by itself.</p>
+                  <ol class="qs">
+                    @for (q of pl.checkpoint.questions; track q.number) {
+                      <li>
+                        <strong>{{ q.prompt }}</strong>
+                        <div class="opts">
+                          @for (c of q.choices; track $index; let j = $index) {
+                            <span class="opt" [class.right]="q.answer === j"><b>{{ letters[j] }}</b>{{ c }}</span>
+                          }
+                        </div>
+                        @if (q.answer < 0) { <span class="error-text">No answer in the key</span> }
+                      </li>
+                    }
+                  </ol>
+                </div>
+              </li>
+            </ol>
+          </section>
+        }
+      </div>
+
+      <aside class="col side">
+        <section class="card">
+          <h2>What happens next</h2>
+          <ol class="next">
+            <li><b>1</b><span>The unit is saved as <strong>drafts</strong>. Nothing reaches families yet.</span></li>
+            <li><b>2</b><span>Open each lesson and <strong>record your voice</strong> reading every page and question.</span></li>
+            <li><b>3</b><span>Check the practice words and add pictures if you like.</span></li>
+            <li><b>4</b><span>Use <strong>Preview as the child</strong>, then publish.</span></li>
+          </ol>
+          <button type="button" class="btn btn-primary full" (click)="create()" [disabled]="!canCreate()">
+            Create {{ plan()?.lessons?.length }} lessons + checkpoint
+          </button>
+          <button type="button" class="btn btn-ghost full" (click)="reset()">Choose another file</button>
+        </section>
+      </aside>
+    </div>
+  }
+}

@@ -26,6 +26,11 @@ export const routes: Routes = [
       { path: '', title: T('Dashboard'), loadComponent: () => import('./pages/overview/overview').then((m) => m.Overview) },
       { path: 'lessons', title: T('Lessons'), loadComponent: () => import('./pages/lessons/lessons').then((m) => m.Lessons) },
       {
+        path: 'lessons/import',
+        title: T('Import a lesson file'),
+        loadComponent: () => import('./pages/lesson-import/lesson-import').then((m) => m.LessonImport),
+      },
+      {
         path: 'lessons/:id',
         title: T('Lesson editor'),
         loadComponent: () => import('./pages/lesson-editor/lesson-editor').then((m) => m.LessonEditor),
