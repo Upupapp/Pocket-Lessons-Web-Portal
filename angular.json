@@ -24,14 +24,17 @@
             "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "assets": [{ "glob": "**/*", "input": "public" }],
+            "assets": [
+              { "glob": "**/*", "input": "public" },
+              { "glob": "pdf.worker.min.mjs", "input": "node_modules/pdfjs-dist/build", "output": "/" }
+            ],
             "styles": ["src/styles.scss"]
           },
           "configurations": {
             "production": {
               "budgets": [
                 { "type": "initial", "maximumWarning": "700kB", "maximumError": "1.5MB" },
-                { "type": "anyComponentStyle", "maximumWarning": "12kB", "maximumError": "24kB" }
+                { "type": "anyComponentStyle", "maximumWarning": "16kB", "maximumError": "24kB" }
               ],
               "outputHashing": "all"
             },
