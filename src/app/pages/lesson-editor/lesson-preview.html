@@ -1,0 +1,236 @@
+<div class="backdrop" (click)="closed.emit()"></div>
+<div class="dialog" role="dialog" aria-modal="true" aria-label="Child view preview">
+  <header class="bar">
+    <div>
+      <p class="eyebrow">Preview as the child</p>
+      <strong>{{ lesson().title || 'Untitled lesson' }}</strong>
+    </div>
+    <button type="button" class="x" (click)="closed.emit()" aria-label="Close preview">✕</button>
+  </header>
+
+  <div class="stage">
+    <!-- ================= PHONE ================= -->
+    <div class="phone">
+      <div class="island" aria-hidden="true"></div>
+      <div class="screen" [class.cp]="isCheckpoint()">
+        <div class="status" aria-hidden="true">
+          <span>9:41</span>
+          <span class="right">
+            <span class="offline">
+              <svg width="11" height="11" viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" fill="currentColor" /></svg>
+              Offline
+            </span>
+            <span class="batt"><i></i></span>
+          </span>
+        </div>
+
+        @switch (screen()) {
+          <!-- ---------- START ---------- -->
+          @case ('start') {
+            <div class="start">
+              <p class="unit-name">{{ unitTitle() || 'Aralin' }}</p>
+              <ol class="trail" aria-label="Learning path">
+                @for (n of pathNodes(); track $index; let i = $index) {
+                  <li [class]="n.state" [class.cp]="n.cp" [style.--x.px]="[0, 38, 0, -38][i % 4]">
+                    @if (n.state === 'here') { <span class="tip">SIMULAN</span> }
+                    <span class="node">
+                      @if (n.state === 'done') {
+                        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                      } @else if (n.cp) {
+                        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="currentColor" /></svg>
+                      } @else if (n.state === 'locked') {
+                        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2.5" fill="currentColor" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" fill="none" stroke="currentColor" stroke-width="2.4" /></svg>
+                      } @else {
+                        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5C7.5 4.5 10 4.8 12 6.5c2-1.7 4.5-2 7-1V19c-2.5-1-5-.7-7 1-2-1.7-4.5-2-7-1z" fill="currentColor" /><path d="M12 6.5V20" stroke="#146B60" stroke-width="1.6" /></svg>
+                      }
+                    </span>
+                  </li>
+                }
+              </ol>
+              <div class="coach-row">
+                <pl-coach [mood]="'happy'" [size]="66" />
+                <p class="bubble">{{ isCheckpoint() ? 'Kaya mo ’yan! Sagutin natin ang mga tanong.' : 'Handa ka na? Tara, magbasa tayo!' }}</p>
+              </div>
+              <div class="lesson-card">
+                <strong>{{ lesson().title || 'Aralin' }}</strong>
+                <div class="chips">
+                  <span><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.4" /><path d="M12 9v4l2.5 2M9 2.5h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none" /></svg>{{ lesson().minutes }} min</span>
+                  <span>{{ lesson().pages.length }} pahina</span>
+                  @if (questionCount()) { <span>{{ questionCount() }} tanong</span> }
+                </div>
+              </div>
+              <button type="button" class="cta" (click)="begin()">SIMULAN</button>
+            </div>
+          }
+
+          <!-- ---------- LESSON STEPS ---------- -->
+          @case ('step') {
+            <div class="topbar">
+              <button type="button" class="ghost-x" (click)="restart()" aria-label="Leave lesson">✕</button>
+              <div class="pbar" role="progressbar" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100"><span [style.width.%]="progress()"></span></div>
+              <span class="sun" [style.--fill.%]="progress()" aria-hidden="true"></span>
+            </div>
+
+            @if (onPage(); as p) {
+              <div class="body">
+                <div class="pic" [class.small]="words().length > 20">
+                  @if (p.pictureId) {
+                    <pl-media-image [mediaId]="p.pictureId" alt="" />
+                  } @else {
+                    <svg class="scene" viewBox="0 0 300 170" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                      <rect width="300" height="170" fill="#FDF3DC" />
+                      <circle cx="244" cy="44" r="22" fill="#F6CC59" />
+                      <g stroke="#F6CC59" stroke-width="4" stroke-linecap="round"><path d="M244 10v8M244 70v8M210 44h8M270 44h8M220 20l5 5M263 63l5 5M268 20l-5 5M225 63l-5 5" /></g>
+                      <path d="M0 120 Q60 84 130 112 T300 104 V170 H0z" fill="#D2E6DF" />
+                      <path d="M0 140 Q80 112 170 134 T300 128 V170 H0z" fill="#9FCFB8" />
+                      <path d="M112 124 q20 -10 38 0 v26 q-18 -8 -38 0z" fill="#fff" stroke="#146B60" stroke-width="3" />
+                      <path d="M188 124 q-20 -10 -38 0 v26 q18 -8 38 0z" fill="#FFFDF8" stroke="#146B60" stroke-width="3" />
+                      <circle cx="56" cy="40" r="5" fill="#fff" /><circle cx="76" cy="30" r="3" fill="#fff" /><circle cx="94" cy="44" r="4" fill="#fff" />
+                    </svg>
+                    <span class="no-pic">No picture yet</span>
+                  }
+                </div>
+                <p class="words" lang="fil" [class.long]="words().length > 26">
+                  @for (w of words(); track $index) {
+                    <span [class.lit]="$index === litWord()" [class.read]="$index < litWord()">{{ w }}</span>{{ ' ' }}
+                  }
+                </p>
+                <div class="listen">
+                  <button type="button" class="speaker" (click)="playPage()" [disabled]="!p.audioId" [attr.aria-label]="playing() === 'page' ? 'Playing' : 'Play teacher voice'">
+                    @if (playing() === 'page') {
+                      <span class="eq"><i></i><i></i><i></i></span>
+                    } @else {
+                      <svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                    }
+                  </button>
+                  <span>{{ p.audioId ? 'Pakinggan si Teacher' : 'Wala pang boses ang pahinang ito' }}</span>
+                </div>
+              </div>
+              <div class="foot">
+                <button type="button" class="cta" (click)="next()">TULOY</button>
+              </div>
+            } @else if (onActivity(); as a) {
+              <div class="body">
+                <p class="kicker">{{ isCheckpoint() ? 'Tanong ' + (step()!.n + 1) + ' ng ' + questionCount() : 'Pakinggan at piliin' }}</p>
+                <div class="ask">
+                  <pl-coach [mood]="coachMood()" [size]="64" />
+                  <div class="bubble q">
+                    <button type="button" class="mini-speaker" (click)="playQuestion()" [disabled]="!a.audioId" [class.on]="playing() === 'question'" aria-label="Play question">
+                      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+                    </button>
+                    <span>{{ a.prompt || 'Tanong' }}</span>
+                  </div>
+                </div>
+                <div class="choices" [class.wide]="wideChoices()">
+                  @for (c of a.choices; track $index; let i = $index) {
+                    <button type="button" class="choice" [class]="choiceState(i)" (click)="pick(i)" [attr.aria-pressed]="picked() === i">
+                      <b>{{ letters[i] }}</b><span>{{ c || '…' }}</span>
+                    </button>
+                  }
+                </div>
+              </div>
+              <div class="foot">
+                <button type="button" class="cta" (click)="check()" [disabled]="picked() === null || feedback() !== null">SURIIN</button>
+              </div>
+
+              @if (feedback(); as fb) {
+                <div class="sheet" [class]="fb" role="status">
+                  @if (fb === 'good') {
+                    <div class="sheet-head">
+                      <span class="badge"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" /></svg></span>
+                      <div><strong>Magaling!</strong><span>Tama ang sagot mo.</span></div>
+                    </div>
+                    <button type="button" class="cta" (click)="next()">TULOY</button>
+                  } @else if (fb === 'retry') {
+                    <div class="sheet-head">
+                      <span class="badge">?</span>
+                      <div><strong>Halos na! Subukan ulit.</strong><span>Pakinggan muli ang tanong, saka pumili.</span></div>
+                    </div>
+                    <button type="button" class="cta" (click)="tryAgain()">SUBUKAN ULIT</button>
+                  } @else {
+                    <div class="sheet-head">
+                      <span class="badge">!</span>
+                      <div><strong>Ang tamang sagot:</strong><span>{{ letters[a.answer] }}) {{ a.choices[a.answer] }} · babalikan natin ito</span></div>
+                    </div>
+                    <button type="button" class="cta" (click)="next()">TULOY</button>
+                  }
+                </div>
+              }
+            }
+          }
+
+          <!-- ---------- FINISH ---------- -->
+          @case ('finish') {
+            <div class="finish">
+              <svg class="confetti" viewBox="0 0 300 120" aria-hidden="true">
+                <g><rect x="30" y="20" width="10" height="5" rx="2" fill="#F6CC59" transform="rotate(20 35 22)" /><rect x="250" y="30" width="10" height="5" rx="2" fill="#146B60" transform="rotate(-25 255 32)" />
+                <circle cx="80" cy="60" r="4" fill="#E9806F" /><circle cx="220" cy="70" r="4" fill="#F6CC59" /><rect x="120" y="14" width="8" height="4" rx="2" fill="#8CC7E8" transform="rotate(35 124 16)" />
+                <rect x="180" y="18" width="9" height="4" rx="2" fill="#E9806F" transform="rotate(-15 184 20)" /><circle cx="40" cy="96" r="3" fill="#146B60" /><circle cx="270" cy="96" r="3" fill="#8CC7E8" /></g>
+              </svg>
+              <pl-coach [mood]="coachMood()" [size]="104" />
+
+              @if (isCheckpoint()) {
+                <h3>{{ passed() ? 'Pumasa ka!' : 'Konting practice pa!' }}</h3>
+                <div class="ring" [class.pass]="passed()" [style.--p.%]="score() * 100">
+                  <strong>{{ rightInTheEnd() }}/{{ questionCount() }}</strong><span>tama</span>
+                </div>
+                <p class="msg">
+                  {{ passed() ? 'Sasabihan si Teacher na handa ka na para sa reading check.' : 'Balikan natin ang kuwento, saka subukan ulit. Kaya mo ’yan!' }}
+                </p>
+              } @else {
+                <h3>Natapos mo ang aralin!</h3>
+                <div class="tiles">
+                  <div class="tile teal">
+                    <span>Tama agad</span>
+                    <strong>{{ questionCount() ? firstTryRight() + '/' + questionCount() : '—' }}</strong>
+                  </div>
+                  <div class="tile day">
+                    <span>Araw ng pag-aaral</span>
+                    <strong><i class="sun-ic"></i> +1</strong>
+                  </div>
+                </div>
+                @if ((lesson().reviewWords ?? []).length) {
+                  <div class="review">
+                    <span>{{ missedWords().length ? 'Babalikan bukas' : 'Mga bagong salita' }}</span>
+                    <div>
+                      @for (w of missedWords().length ? missedWords() : lesson().reviewWords ?? []; track w) { <b>{{ w }}</b> }
+                    </div>
+                  </div>
+                }
+              }
+              <div class="finish-actions">
+                <button type="button" class="cta" (click)="closed.emit()">TULOY</button>
+                <button type="button" class="again" (click)="restart()">Ulitin</button>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+
+    <!-- ================= TEACHER NOTES ================= -->
+    <aside class="explain" aria-live="polite">
+      <span class="tag">{{ explain().tag }}</span>
+      <h3>{{ explain().title }}</h3>
+      <p>{{ explain().body }}</p>
+
+      <ol class="flow">
+        <li [class.on]="screen() === 'start'">Start the circle</li>
+        <li [class.on]="screen() === 'step' && !!onPage()">Read along with your voice</li>
+        <li [class.on]="screen() === 'step' && !!onActivity()">{{ isCheckpoint() ? 'Answer the story questions' : 'Tap practice' }}</li>
+        <li [class.on]="screen() === 'finish'">{{ isCheckpoint() ? 'Pass or practise more' : 'Finish and review words' }}</li>
+      </ol>
+
+      @if (screen() === 'step') {
+        <div class="jump">
+          <span class="small muted">Screen {{ index() + 1 }} of {{ steps().length }}</span>
+          <div>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="back()">‹ Back</button>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="next()">Skip ›</button>
+          </div>
+        </div>
+      }
+      <p class="note">Child screens are in Filipino. Words light up evenly in this preview; exact word timing comes with the read-along editor.</p>
+    </aside>
+  </div>
+</div>
