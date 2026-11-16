@@ -6,6 +6,29 @@
 } @else if (lesson(); as l) {
   <div class="head">
     <a routerLink="/app/lessons" class="back">← All lessons</a>
+    @if (unit(); as u) {
+      <nav class="unit-bar" aria-label="Lessons in this unit">
+        <div class="unit-name">
+          <span class="eyebrow">Unit</span>
+          <strong>{{ u.title }}</strong>
+          <span class="small muted">{{ isCheckpoint() ? 'Checkpoint' : 'Part ' + (position() + 1) }} of {{ path().length - 1 }} + checkpoint</span>
+        </div>
+        <ol class="mini-path">
+          @for (x of path(); track x.id; let i = $index) {
+            <li>
+              <a [routerLink]="['/app/lessons', x.id]" [class.here]="x.id === l.id" [class.cp]="x.kind === 'checkpoint'" [class.done]="x.status === 'published'"
+                [attr.aria-current]="x.id === l.id ? 'page' : null" [attr.aria-label]="x.title">
+                @if (x.kind === 'checkpoint') { ★ } @else { {{ i + 1 }} }
+              </a>
+            </li>
+          }
+        </ol>
+        <div class="unit-nav">
+          @if (prevLesson(); as p) { <a class="btn btn-ghost btn-sm" [routerLink]="['/app/lessons', p.id]">‹ Previous</a> }
+          @if (nextLesson(); as n) { <a class="btn btn-ghost btn-sm" [routerLink]="['/app/lessons', n.id]">Next ›</a> }
+        </div>
+      </nav>
+    }
     <div class="title-row">
       <input
         class="title"
@@ -31,6 +54,16 @@
   </div>
 
   @if (toast()) { <div class="toast" role="status">{{ toast() }}</div> }
+
+  @if (isCheckpoint()) {
+    <div class="cp-banner">
+      <svg width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="#C99B2E" /></svg>
+      <div>
+        <strong>Checkpoint · pass mark {{ passNeeded() }} of {{ l.activities.length }} right (80%, proposed)</strong>
+        <p class="small">Children reach this after the last part. Passing puts them on your "Ready to move up" list for an in-person reading check. It never changes their level by itself.</p>
+      </div>
+    </div>
+  }
 
   <div class="grid">
     <div class="col">
@@ -69,8 +102,14 @@
       <section class="card">
         <div class="section-head">
           <div>
-            <h2>Pages</h2>
-            <p class="small muted">Type the words, add a picture, then read the page aloud. Children hear your voice and every word lights up.</p>
+            <h2>{{ isCheckpoint() ? 'Opening page' : 'Pages' }}</h2>
+            <p class="small muted">
+              @if (isCheckpoint()) {
+                Record a short opening line before the questions, for example "Natapos mo ang kuwento! Sagutin natin ang mga tanong."
+              } @else {
+                Type the words, add a picture, then read the page aloud. Children hear your voice and every word lights up.
+              }
+            </p>
           </div>
           <span class="pill pill-grey">{{ recordedPages() }} of {{ l.pages.length }} recorded</span>
         </div>
@@ -127,35 +166,70 @@
       <section class="card">
         <div class="section-head">
           <div>
-            <h2>Activities</h2>
-            <p class="small muted">The question is read aloud. The child answers by tapping one of three choices, never by typing.</p>
+            <h2>{{ isCheckpoint() ? 'Checkpoint questions' : 'Activities' }}</h2>
+            <p class="small muted">Record yourself reading each question. The child answers by tapping one of 2 to 4 choices, never by typing.</p>
           </div>
+          @if (l.activities.length) { <span class="pill pill-grey">{{ recordedQuestions() }} of {{ l.activities.length }} recorded</span> }
         </div>
-        @for (a of l.activities; track a.id; let i = $index) {
+        @for (a of l.activities; track a.id; let i = $index, first = $first, last = $last) {
           <div class="activity">
             <div class="act-head">
-              <strong>Activity {{ i + 1 }}</strong>
-              <button type="button" class="link danger" (click)="removeActivity(i)">Remove</button>
+              <strong>{{ isCheckpoint() ? 'Question' : 'Activity' }} {{ i + 1 }}</strong>
+              @if (a.auto) { <span class="pill pill-sun">Made automatically · please check</span> }
+              <div class="page-tools">
+                <button type="button" class="icon" (click)="moveActivity(i, -1)" [disabled]="first" aria-label="Move up">↑</button>
+                <button type="button" class="icon" (click)="moveActivity(i, 1)" [disabled]="last" aria-label="Move down">↓</button>
+                <button type="button" class="icon danger" (click)="removeActivity(i)" aria-label="Remove">✕</button>
+              </div>
             </div>
+            @if (a.prompt.includes('maririnig mo') && a.choices[a.answer]) {
+              <p class="say">When you record this question, say: <strong>“Tapikin ang salitang {{ a.choices[a.answer] }}.”</strong> The word isn't written in the question, so the child has to listen for it.</p>
+            }
             <label class="field">
               <span>Question</span>
-              <input class="input" [ngModel]="a.prompt" (ngModelChange)="patchActivity(i, { prompt: $event })" placeholder="e.g. Alin ang pusa?" maxlength="120" />
+              <input class="input" [ngModel]="a.prompt" (ngModelChange)="patchActivity(i, { prompt: $event, auto: false })" placeholder="e.g. Alin ang pusa?" maxlength="200" />
             </label>
+            <pl-voice-recorder [audioId]="a.audioId" label="Record this question" (recorded)="onQuestionRecorded(i, $event)" (removed)="onQuestionRecordingRemoved(i)" />
             <fieldset class="choices">
-              <legend class="label">Choices (pick the right one)</legend>
+              <legend class="label">Choices · tick the right one</legend>
               @for (c of a.choices; track $index; let j = $index) {
                 <div class="choice" [class.right]="a.answer === j">
-                  <input type="radio" [name]="'ans-' + a.id" [checked]="a.answer === j" (change)="patchActivity(i, { answer: j })" [attr.aria-label]="'Choice ' + (j + 1) + ' is correct'" />
-                  <input class="input" [ngModel]="c" (ngModelChange)="setChoice(i, j, $event)" [placeholder]="'Choice ' + (j + 1)" maxlength="40" />
+                  <span class="letter">{{ letters[j] }}</span>
+                  <input type="radio" [name]="'ans-' + a.id" [checked]="a.answer === j" (change)="patchActivity(i, { answer: j })" [attr.aria-label]="'Choice ' + letters[j] + ' is correct'" />
+                  <input class="input" [ngModel]="c" (ngModelChange)="setChoice(i, j, $event)" [placeholder]="'Choice ' + letters[j]" maxlength="80" />
+                  <button type="button" class="icon" (click)="removeChoice(i, j)" [disabled]="a.choices.length <= minChoices" [attr.aria-label]="'Remove choice ' + letters[j]">✕</button>
                 </div>
+              }
+              @if (a.choices.length < maxChoices) {
+                <button type="button" class="link add-choice" (click)="addChoice(i)">+ Add choice {{ letters[a.choices.length] }}</button>
               }
             </fieldset>
           </div>
         } @empty {
           <p class="small muted none">No activities yet. Activities are optional but help children practise.</p>
         }
-        <button type="button" class="btn btn-ghost" (click)="addActivity()">+ Add activity</button>
+        <button type="button" class="btn btn-ghost" (click)="addActivity()">+ Add {{ isCheckpoint() ? 'question' : 'activity' }}</button>
       </section>
+
+      @if (!isCheckpoint()) {
+        <!-- Spaced review words (UpUp proposal) -->
+        <section class="card">
+          <h2>Practice words</h2>
+          <p class="small muted">If the child misses one of these, it comes back in a short review after 1, 3 and 7 days.</p>
+          <div class="review">
+            @for (w of l.reviewWords ?? []; track w) {
+              <span class="rw">{{ w }} <button type="button" (click)="removeReviewWord(w)" [attr.aria-label]="'Remove ' + w">✕</button></span>
+            } @empty {
+              <span class="small muted">No practice words yet.</span>
+            }
+          </div>
+          <form class="rw-add" (submit)="$event.preventDefault(); addReviewWord()">
+            <label class="sr-only" for="rw-new">New practice word</label>
+            <input id="rw-new" class="input" [ngModel]="newWord()" (ngModelChange)="newWord.set($event)" name="rw" placeholder="Add a word from the story" maxlength="30" />
+            <button type="submit" class="btn btn-ghost btn-sm">Add</button>
+          </form>
+        </section>
+      }
     </div>
 
     <!-- Pack check, assignment and publishing (WEB-12, WEB-13) -->
@@ -206,6 +280,6 @@
   </div>
 
   @if (previewOpen()) {
-    <pl-lesson-preview [lesson]="l" (closed)="previewOpen.set(false)" />
+    <pl-lesson-preview [lesson]="l" [path]="path()" [unitTitle]="unit()?.title ?? ''" (closed)="previewOpen.set(false)" />
   }
 }

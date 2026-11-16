@@ -2,7 +2,21 @@ import { Component, DestroyRef, computed, effect, inject, input, signal, untrack
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../../core/data.service';
-import { Activity, LANGUAGES, LEVELS, LEVEL_HINT, Lesson, LessonPage, Level, PACK_LIMIT_BYTES, formatBytes, uid } from '../../core/models';
+import {
+  Activity,
+  LANGUAGES,
+  LEVELS,
+  LEVEL_HINT,
+  Lesson,
+  LessonPage,
+  Level,
+  MAX_CHOICES,
+  MIN_CHOICES,
+  PACK_LIMIT_BYTES,
+  PASS_MARK,
+  formatBytes,
+  uid,
+} from '../../core/models';
 import { media } from '../../core/storage';
 import { MediaImage } from '../../shared/media-image';
 import { shrinkPicture } from '../../shared/picture';
@@ -25,6 +39,9 @@ export class LessonEditor {
   readonly languages = LANGUAGES;
   readonly limit = PACK_LIMIT_BYTES;
   readonly fmt = formatBytes;
+  readonly minChoices = MIN_CHOICES;
+  readonly maxChoices = MAX_CHOICES;
+  readonly letters = 'ABCD';
 
   readonly lesson = signal<Lesson | null>(null);
   readonly notFound = signal(false);
@@ -38,7 +55,30 @@ export class LessonEditor {
   readonly ready = computed(() => this.checks().every((c) => c.ok));
   readonly percent = computed(() => Math.min(100, (this.bytes() / PACK_LIMIT_BYTES) * 100));
   readonly recordedPages = computed(() => this.lesson()?.pages.filter((p) => p.audioId).length ?? 0);
-  readonly voiceSeconds = computed(() => this.lesson()?.pages.reduce((s, p) => s + (p.audioSeconds ?? 0), 0) ?? 0);
+  readonly voiceSeconds = computed(() => {
+    const l = this.lesson();
+    if (!l) return 0;
+    return l.pages.reduce((s, p) => s + (p.audioSeconds ?? 0), 0) + l.activities.reduce((s, a) => s + (a.audioSeconds ?? 0), 0);
+  });
+
+  // ---------- Unit context ----------
+  readonly unit = computed(() => {
+    const id = this.lesson()?.unitId;
+    return id ? this.data.unit(id) : undefined;
+  });
+  readonly path = computed(() => {
+    const l = this.lesson();
+    const u = this.unit();
+    if (!l || !u) return [];
+    return this.data.unitLessons(u.id).map((x) => (x.id === l.id ? l : x));
+  });
+  readonly position = computed(() => this.path().findIndex((x) => x.id === this.lesson()?.id));
+  readonly prevLesson = computed(() => this.path()[this.position() - 1]);
+  readonly nextLesson = computed(() => this.path()[this.position() + 1]);
+  readonly isCheckpoint = computed(() => this.lesson()?.kind === 'checkpoint');
+  readonly passNeeded = computed(() => Math.ceil((this.lesson()?.activities.length ?? 0) * PASS_MARK));
+  readonly recordedQuestions = computed(() => this.lesson()?.activities.filter((a) => a.audioId).length ?? 0);
+  readonly newWord = signal('');
 
   private saveTimer?: ReturnType<typeof setTimeout>;
   private persisted = false;
@@ -52,6 +92,10 @@ export class LessonEditor {
         this.notFound.set(false);
       } else {
         // untracked: reload only when the route id changes, not on every save
+        if (this.saveTimer) {
+          clearTimeout(this.saveTimer);
+          this.flush();
+        }
         const found = untracked(() => this.data.lesson(id));
         this.lesson.set(found ? structuredClone(found) : null);
         this.persisted = !!found;
@@ -137,6 +181,47 @@ export class LessonEditor {
     this.patch({ activities: [...this.lesson()!.activities, activity] });
   }
 
+  addChoice(index: number): void {
+    const a = this.lesson()!.activities[index];
+    if (a.choices.length >= MAX_CHOICES) return;
+    this.patchActivity(index, { choices: [...a.choices, ''] });
+  }
+
+  removeChoice(index: number, choice: number): void {
+    const a = this.lesson()!.activities[index];
+    if (a.choices.length <= MIN_CHOICES) return;
+    const answer = choice === a.answer ? 0 : choice < a.answer ? a.answer - 1 : a.answer;
+    this.patchActivity(index, { choices: a.choices.filter((_, i) => i !== choice), answer });
+  }
+
+  onQuestionRecorded(index: number, rec: Recording): void {
+    this.patchActivity(index, rec);
+  }
+
+  onQuestionRecordingRemoved(index: number): void {
+    this.patchActivity(index, { audioId: undefined, audioBytes: undefined, audioSeconds: undefined });
+  }
+
+  moveActivity(index: number, delta: -1 | 1): void {
+    const list = [...this.lesson()!.activities];
+    const target = index + delta;
+    if (target < 0 || target >= list.length) return;
+    [list[index], list[target]] = [list[target], list[index]];
+    this.patch({ activities: list });
+  }
+
+  addReviewWord(): void {
+    const word = this.newWord().trim().toLowerCase();
+    const words = this.lesson()!.reviewWords ?? [];
+    this.newWord.set('');
+    if (!word || words.includes(word) || words.length >= 8) return;
+    this.patch({ reviewWords: [...words, word] });
+  }
+
+  removeReviewWord(word: string): void {
+    this.patch({ reviewWords: (this.lesson()!.reviewWords ?? []).filter((w) => w !== word) });
+  }
+
   patchActivity(index: number, changes: Partial<Activity>): void {
     this.patch({ activities: this.lesson()!.activities.map((a, i) => (i === index ? { ...a, ...changes } : a)) });
   }
@@ -146,7 +231,10 @@ export class LessonEditor {
     this.patchActivity(index, { choices: a.choices.map((c, i) => (i === choice ? value : c)) });
   }
 
-  removeActivity(index: number): void {
+  async removeActivity(index: number): Promise<void> {
+    const a = this.lesson()!.activities[index];
+    if (a.prompt.trim() && !confirm(`Remove activity ${index + 1}?`)) return;
+    if (a.audioId) await media.delete(a.audioId).catch(() => undefined);
     this.patch({ activities: this.lesson()!.activities.filter((_, i) => i !== index) });
   }
 
@@ -178,10 +266,7 @@ export class LessonEditor {
     clearTimeout(this.saveTimer);
     this.saveTimer = undefined;
     if (this.persisted) await this.data.deleteLesson(l.id);
-    else for (const p of l.pages) {
-      if (p.audioId) await media.delete(p.audioId).catch(() => undefined);
-      if (p.pictureId) await media.delete(p.pictureId).catch(() => undefined);
-    }
+    else await this.data.deleteMedia(l);
     void this.router.navigateByUrl('/app/lessons');
   }
 

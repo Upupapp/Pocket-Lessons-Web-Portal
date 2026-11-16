@@ -46,9 +46,9 @@ function pickMime(): string {
           } @else {
             <button type="button" class="btn btn-primary btn-sm" (click)="start()">
               <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3" fill="currentColor" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" /></svg>
-              Record this page
+              {{ label() }}
             </button>
-            <span class="muted small">Read the page aloud in your own voice.</span>
+            <span class="muted small">{{ hint() }}</span>
           }
         }
       }
@@ -69,6 +69,8 @@ function pickMime(): string {
 })
 export class VoiceRecorder {
   readonly audioId = input<string | undefined>();
+  readonly label = input('Record this page');
+  readonly hint = input('Read it aloud in your own voice.');
   readonly recorded = output<Recording>();
   readonly removed = output<void>();
 
