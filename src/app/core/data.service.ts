@@ -6,10 +6,14 @@ import {
   Lesson,
   LessonPage,
   Level,
+  MAX_CHOICES,
+  MIN_CHOICES,
   PACK_LIMIT_BYTES,
+  Unit,
   daysSince,
   uid,
 } from './models';
+import { UnitPlan } from './lesson-import';
 import { local, media } from './storage';
 
 /** Pack overhead for the lesson manifest and app metadata. */
@@ -117,6 +121,7 @@ export class DataService {
   readonly learners = signal<Learner[]>([]);
   readonly lessons = signal<Lesson[]>([]);
   readonly assessments = signal<Assessment[]>([]);
+  readonly units = signal<Unit[]>([]);
 
   constructor() {
     if (!local.get<boolean>('seeded', false)) {
@@ -129,6 +134,7 @@ export class DataService {
     this.learners.set(local.get<Learner[]>('learners', []));
     this.lessons.set(local.get<Lesson[]>('lessons', []));
     this.assessments.set(local.get<Assessment[]>('assessments', []));
+    this.units.set(local.get<Unit[]>('units', []));
   }
 
   // ---------- Derived views ----------
@@ -225,17 +231,91 @@ export class DataService {
   async deleteLesson(id: string): Promise<void> {
     const lesson = this.lesson(id);
     this.saveLessons(this.lessons().filter((l) => l.id !== id));
-    for (const p of lesson?.pages ?? []) {
-      if (p.audioId) await media.delete(p.audioId).catch(() => undefined);
-      if (p.pictureId) await media.delete(p.pictureId).catch(() => undefined);
-    }
+    if (lesson) await this.deleteMedia(lesson);
+  }
+
+  /** Every recording and picture a lesson uses, so they can be removed with it. */
+  async deleteMedia(lesson: Lesson): Promise<void> {
+    const ids = [
+      ...lesson.pages.flatMap((p) => [p.audioId, p.pictureId]),
+      ...lesson.activities.map((a) => a.audioId),
+    ].filter((x): x is string => !!x);
+    for (const id of ids) await media.delete(id).catch(() => undefined);
   }
 
   packBytes(lesson: Lesson): number {
     const text = new TextEncoder().encode(
-      JSON.stringify({ t: lesson.title, p: lesson.pages.map((p) => p.text), a: lesson.activities }),
+      JSON.stringify({ t: lesson.title, p: lesson.pages.map((p) => p.text), a: lesson.activities, r: lesson.reviewWords }),
     ).length;
-    return lesson.pages.reduce((sum, p) => sum + (p.audioBytes ?? 0) + (p.pictureBytes ?? 0), text + PACK_OVERHEAD);
+    const voice = lesson.activities.reduce((sum, a) => sum + (a.audioBytes ?? 0), 0);
+    return lesson.pages.reduce((sum, p) => sum + (p.audioBytes ?? 0) + (p.pictureBytes ?? 0), text + voice + PACK_OVERHEAD);
+  }
+
+  // ---------- Units: a story split into short lessons plus a checkpoint ----------
+
+  unit(id: string): Unit | undefined {
+    return this.units().find((u) => u.id === id);
+  }
+
+  /** The unit's lessons in path order; the checkpoint comes last. */
+  unitLessons(unitId: string): Lesson[] {
+    return this.lessons()
+      .filter((l) => l.unitId === unitId)
+      .sort((a, b) => (a.unitIndex ?? 0) - (b.unitIndex ?? 0));
+  }
+
+  /** Creates the unit and its draft lessons from an import plan. Returns the new unit. */
+  createUnit(
+    info: Omit<Unit, 'id' | 'createdAt'>,
+    plan: UnitPlan,
+  ): Unit {
+    const now = new Date().toISOString();
+    const unit: Unit = { ...info, id: uid('unt'), createdAt: now };
+    const base = {
+      level: info.level,
+      language: info.language,
+      status: 'draft' as const,
+      version: 1,
+      assignedLevels: [info.level],
+      createdAt: now,
+      updatedAt: now,
+      unitId: unit.id,
+    };
+    const lessons: Lesson[] = plan.lessons.map((p, i) => ({
+      ...base,
+      id: uid('lsn'),
+      title: p.title,
+      objective: `Reads part ${i + 1} of "${info.title}"${p.reviewWords.length ? ` and practises: ${p.reviewWords.join(', ')}` : ''}.`,
+      minutes: p.minutes,
+      pages: p.paragraphs.map((text) => ({ id: uid('pg'), text })),
+      activities: p.practice.map((a) => ({ id: uid('act'), ...a, auto: true })),
+      unitIndex: i,
+      kind: 'lesson',
+      reviewWords: p.reviewWords,
+    }));
+    const n = plan.checkpoint.questions.length;
+    lessons.push({
+      ...base,
+      id: uid('lsn'),
+      title: plan.checkpoint.title,
+      objective: `Answers ${n} question${n === 1 ? '' : 's'} about the whole story. Passing flags the child for an in-person reading check.`,
+      minutes: Math.max(5, Math.min(10, 3 + n)),
+      pages: [{ id: uid('pg'), text: plan.checkpoint.intro }],
+      activities: plan.checkpoint.questions.map((q) => ({ id: uid('act'), prompt: q.prompt, choices: q.choices, answer: q.answer })),
+      unitIndex: plan.lessons.length,
+      kind: 'checkpoint',
+      reviewWords: [],
+    });
+    this.saveUnits([unit, ...this.units()]);
+    this.saveLessons([...lessons, ...this.lessons()]);
+    return unit;
+  }
+
+  async deleteUnit(id: string): Promise<void> {
+    const lessons = this.unitLessons(id);
+    this.saveLessons(this.lessons().filter((l) => l.unitId !== id));
+    this.saveUnits(this.units().filter((u) => u.id !== id));
+    for (const l of lessons) await this.deleteMedia(l);
   }
 
   packChecks(lesson: Lesson): PackCheck[] {
@@ -243,8 +323,15 @@ export class DataService {
     const noText = lesson.pages.filter((p) => !p.text.trim()).length;
     const noAudio = lesson.pages.filter((p) => !p.audioId).length;
     const badActivities = lesson.activities.filter(
-      (a) => !a.prompt.trim() || a.choices.some((c) => !c.trim()) || a.answer < 0,
+      (a) =>
+        !a.prompt.trim() ||
+        a.choices.length < MIN_CHOICES ||
+        a.choices.length > MAX_CHOICES ||
+        a.choices.some((c) => !c.trim()) ||
+        a.answer < 0 ||
+        a.answer >= a.choices.length,
     ).length;
+    const checkpoint = lesson.kind === 'checkpoint';
     return [
       { label: 'Lesson has a title', ok: lesson.title.trim().length > 0 },
       { label: 'Every page has text', ok: lesson.pages.length > 0 && noText === 0, detail: noText ? `${noText} page(s) empty` : undefined },
@@ -254,6 +341,9 @@ export class DataService {
         detail: noAudio ? `${noAudio} page(s) need a recording` : undefined,
       },
       { label: 'Activities are complete', ok: badActivities === 0, detail: badActivities ? `${badActivities} activity(ies) incomplete` : undefined },
+      ...(checkpoint
+        ? [{ label: 'Checkpoint has questions', ok: lesson.activities.length > 0, detail: lesson.activities.length ? undefined : 'Add the story questions' }]
+        : []),
       { label: 'Assigned to at least one reading level', ok: lesson.assignedLevels.length > 0 },
       { label: 'Pack is under 2 MB', ok: bytes <= PACK_LIMIT_BYTES },
     ];
@@ -285,6 +375,10 @@ export class DataService {
   private saveLessons(v: Lesson[]): void {
     this.lessons.set(v);
     local.set('lessons', v);
+  }
+  private saveUnits(v: Unit[]): void {
+    this.units.set(v);
+    local.set('units', v);
   }
   private saveAssessments(v: Assessment[]): void {
     this.assessments.set(v);

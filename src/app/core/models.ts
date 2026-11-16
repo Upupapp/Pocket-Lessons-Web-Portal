@@ -44,14 +44,28 @@ export interface LessonPage {
   pictureBytes?: number;
 }
 
+/** A tap question. Children answer by tapping one of 2 to 4 choices, never by typing. */
 export interface Activity {
   id: string;
   prompt: string;
   choices: string[];
   answer: number;
+  /** The teacher reading the question aloud (optional). */
+  audioId?: string;
+  audioBytes?: number;
+  audioSeconds?: number;
+  /** Made by the file import; the teacher should check it. */
+  auto?: boolean;
 }
 
+export const MIN_CHOICES = 2;
+export const MAX_CHOICES = 4;
+
+/** The share of checkpoint questions a child must get right (UpUp proposal, for AHA to confirm). */
+export const PASS_MARK = 0.8;
+
 export type LessonStatus = 'draft' | 'published';
+export type LessonKind = 'lesson' | 'checkpoint';
 
 export interface Lesson {
   id: string;
@@ -68,6 +82,25 @@ export interface Lesson {
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
+  /** Set when the lesson belongs to a unit (a story split into short lessons plus a checkpoint). */
+  unitId?: string;
+  unitIndex?: number;
+  kind?: LessonKind;
+  /** Words that come back in spaced review if the child misses them. */
+  reviewWords?: string[];
+}
+
+/** A story split into short lessons on one learning path, ending with a checkpoint. */
+export interface Unit {
+  id: string;
+  title: string;
+  author?: string;
+  level: Level;
+  language: string;
+  /** The file the unit was imported from, and the label printed on it (e.g. "Reading for Grades 1-2 · Aralin 1"). */
+  sourceFile?: string;
+  sourceLabel?: string;
+  createdAt: string;
 }
 
 export type AssessmentType = 'placement' | 'fluency';
