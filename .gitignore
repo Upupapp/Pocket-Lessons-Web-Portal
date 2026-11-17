@@ -10,3 +10,10 @@ npm-install.log
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+
+# Learning-center files stay out of this public repo:
+# lesson PDFs are copyrighted, and trackers hold children's personal data.
+*.pdf
+*.xlsx
+*.xls
+*.csv
