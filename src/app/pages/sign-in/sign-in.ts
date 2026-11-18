@@ -1,6 +1,7 @@
 import { Component, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { apiMode } from '../../core/api';
 import { AuthService, DEMO_ACCOUNT } from '../../core/auth.service';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
@@ -68,7 +69,9 @@ import { Logo } from '../../shared/logo';
           }
         </div>
         <p class="small muted note">
-          Accounts in this preview are saved only in this browser. <a routerLink="/welcome/1">See the welcome pages again</a>
+          @if (apiMode) { Accounts and lessons are saved on the Pocket Lessons server. }
+          @else { Accounts in this preview are saved only in this browser. }
+          <a routerLink="/welcome/1">See the welcome pages again</a>
         </p>
       </section>
     </main>
@@ -103,6 +106,7 @@ export class SignIn {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   readonly next = input<string>('');
+  readonly apiMode = apiMode;
 
   readonly mode = signal<'signin' | 'join'>('signin');
   readonly busy = signal(false);
@@ -128,9 +132,9 @@ export class SignIn {
     this.error.set('');
     if (!this.email || !this.password) return this.error.set('Enter your email and password.');
     this.busy.set(true);
-    const ok = await this.auth.signIn(this.email, this.password);
+    const err = await this.auth.signIn(this.email, this.password);
     this.busy.set(false);
-    if (!ok) return this.error.set('That email and password do not match an account in this browser.');
+    if (err) return this.error.set(err);
     this.go();
   }
 

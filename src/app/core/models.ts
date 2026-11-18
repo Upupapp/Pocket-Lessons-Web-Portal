@@ -19,9 +19,11 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
+  /** Browser-only pilot preview. With the API, passwords never reach the portal's storage. */
+  passwordHash?: string;
   center: string;
-  role: 'Teacher' | 'Facilitator' | 'Program staff';
+  centerId?: string;
+  role: 'Teacher' | 'Facilitator' | 'Program staff' | 'Admin';
 }
 
 export interface Learner {
