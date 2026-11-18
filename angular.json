@@ -41,6 +41,14 @@
             "development": {
               "optimization": false,
               "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                { "replace": "src/environments/environment.ts", "with": "src/environments/environment.development.ts" }
+              ]
+            },
+            "demo": {
+              "optimization": false,
+              "extractLicenses": false,
               "sourceMap": true
             }
           },
@@ -50,7 +58,8 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": { "buildTarget": "pocket-lessons-portal:build:production" },
-            "development": { "buildTarget": "pocket-lessons-portal:build:development" }
+            "development": { "buildTarget": "pocket-lessons-portal:build:development" },
+            "demo": { "buildTarget": "pocket-lessons-portal:build:demo" }
           },
           "defaultConfiguration": "development"
         },
