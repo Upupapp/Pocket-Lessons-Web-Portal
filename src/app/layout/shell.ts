@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { apiMode } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { DataService } from '../core/data.service';
 import { Logo } from '../shared/logo';
@@ -55,9 +56,30 @@ const NAV: NavItem[] = [
           <button type="button" class="burger" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-label="Menu">
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
           </button>
-          <span class="preview"><span class="dot"></span>Pilot preview · saved in this browser · sample data</span>
+          <span class="preview">
+            <span class="dot" [class.busy]="data.syncing()"></span>
+            {{ apiMode ? (data.syncing() ? 'Saving to the server…' : 'Pilot · saved on the server') : 'Pilot preview · saved in this browser · sample data' }}
+          </span>
         </header>
-        <main class="content"><router-outlet /></main>
+        @if (data.syncError()) {
+          <div class="sync" role="alert">
+            <span>{{ data.syncError() }}</span>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="reload()">Reload</button>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="data.syncError.set('')">Dismiss</button>
+          </div>
+        }
+        <main class="content">
+          @if (data.ready()) {
+            <router-outlet />
+          } @else if (data.loadError()) {
+            <div class="state" role="alert">
+              <p>{{ data.loadError() }}</p>
+              <button type="button" class="btn btn-primary" (click)="data.load()">Try again</button>
+            </div>
+          } @else {
+            <p class="state muted" role="status">Loading your center's records…</p>
+          }
+        </main>
       </div>
     </div>
   `,
@@ -90,6 +112,14 @@ const NAV: NavItem[] = [
     .burger { display: none; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 6px; }
     .preview { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--white); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sun); }
+    .dot.busy { animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 50% { opacity: .3; } }
+    .sync {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 clamp(16px, 4vw, 40px) 8px;
+      padding: 10px 14px; border-radius: 12px; background: #FDECEA; color: #7A1F12; border: 1px solid #F3C2BA; font-size: 14px;
+    }
+    .sync span { flex: 1 1 260px; }
+    .state { display: grid; gap: 14px; justify-items: start; padding: 40px 0; }
     .content { padding: 8px clamp(16px, 4vw, 40px) 48px; max-width: 1280px; width: 100%; }
     @media (max-width: 960px) {
       .layout { grid-template-columns: 1fr; }
@@ -104,6 +134,7 @@ export class Shell {
   readonly data = inject(DataService);
   private readonly router = inject(Router);
   readonly nav = NAV;
+  readonly apiMode = apiMode;
   readonly menuOpen = signal(false);
   readonly initials = computed(() =>
     (this.auth.user()?.name ?? '')
@@ -114,7 +145,12 @@ export class Shell {
   );
 
   signOut(): void {
+    if (this.data.syncing() && !confirm('Some changes are still being saved. Sign out anyway?')) return;
     this.auth.signOut();
     void this.router.navigateByUrl('/sign-in');
+  }
+
+  reload(): void {
+    location.reload();
   }
 }

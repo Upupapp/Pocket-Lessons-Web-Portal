@@ -1,4 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { ApiError, api, apiMode } from './api';
+import { AuthService } from './auth.service';
 import {
   Assessment,
   LEVELS,
@@ -112,9 +114,18 @@ function seedLessons(): Lesson[] {
   ];
 }
 
+interface CenterData {
+  learners: Learner[];
+  lessons: Lesson[];
+  units: Unit[];
+  assessments: Assessment[];
+}
+
 /**
- * All teaching data for the pilot preview: learners, lessons and reading assessments.
- * Saved in this browser. Replace the load/save calls with API calls when the backend is ready.
+ * All teaching data: learners, lessons, story units and reading assessments.
+ * - With the API: loaded from the server after sign-in. Pages update at once; each change is then sent
+ *   to the server in order (a unit before its lessons, a child before their checks).
+ * - Pilot preview: saved in this browser, with sample data on first run.
  */
 @Injectable({ providedIn: 'root' })
 export class DataService {
@@ -123,7 +134,33 @@ export class DataService {
   readonly assessments = signal<Assessment[]>([]);
   readonly units = signal<Unit[]>([]);
 
+  /** False while the signed-in center's records are loading from the server. */
+  readonly ready = signal(!apiMode);
+  readonly loadError = signal('');
+  /** Set when a change could not be saved on the server. */
+  readonly syncError = signal('');
+  private readonly pending = signal(0);
+  /** True while changes are still on their way to the server. */
+  readonly syncing = computed(() => this.pending() > 0);
+
+  private queue: Promise<unknown> = Promise.resolve();
+  /** Latest body per PUT path that has not been sent yet, so quick edits go out as one request. */
+  private readonly unsent = new Map<string, { body: unknown }>();
+  private loadedFor: string | null = null;
+
   constructor() {
+    if (apiMode) {
+      const auth = inject(AuthService);
+      effect(() => {
+        const userId = auth.user()?.id ?? null;
+        untracked(() => this.onUserChanged(userId));
+      });
+      // Closing the tab while changes are still on their way would lose them.
+      window.addEventListener('beforeunload', (e) => {
+        if (this.syncing()) e.preventDefault();
+      });
+      return;
+    }
     if (!local.get<boolean>('seeded', false)) {
       const learners = seedLearners();
       local.set('learners', learners);
@@ -135,6 +172,74 @@ export class DataService {
     this.lessons.set(local.get<Lesson[]>('lessons', []));
     this.assessments.set(local.get<Assessment[]>('assessments', []));
     this.units.set(local.get<Unit[]>('units', []));
+  }
+
+  // ---------- Server (API mode) ----------
+
+  private onUserChanged(userId: string | null): void {
+    if (userId === this.loadedFor) return;
+    this.loadedFor = userId;
+    this.learners.set([]);
+    this.lessons.set([]);
+    this.assessments.set([]);
+    this.units.set([]);
+    this.syncError.set('');
+    this.ready.set(false);
+    if (userId) void this.load();
+  }
+
+  /** Loads the signed-in teacher's center records. */
+  async load(): Promise<void> {
+    const userId = this.loadedFor;
+    this.loadError.set('');
+    this.ready.set(false);
+    try {
+      const d = await api.get<CenterData>('/data');
+      if (userId !== this.loadedFor) return;
+      this.learners.set(d.learners);
+      this.lessons.set(d.lessons);
+      this.units.set(d.units);
+      this.assessments.set(d.assessments);
+      this.ready.set(true);
+    } catch (err) {
+      if (userId !== this.loadedFor || (err instanceof ApiError && err.status === 401)) return;
+      this.loadError.set(err instanceof ApiError ? err.message : 'Your records could not be loaded. Try again.');
+    }
+  }
+
+  private enqueue(run: () => Promise<unknown>): void {
+    this.pending.update((n) => n + 1);
+    this.queue = this.queue
+      .then(run)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) return;
+        const reason = err instanceof ApiError ? err.message : 'The server did not accept it.';
+        this.syncError.set(`Your last change was not saved. ${reason}`);
+      })
+      .finally(() => this.pending.update((n) => n - 1));
+  }
+
+  private remotePut(path: string, body: unknown): void {
+    if (!apiMode) return;
+    const waiting = this.unsent.get(path);
+    if (waiting) {
+      waiting.body = body;
+      return;
+    }
+    const entry = { body };
+    this.unsent.set(path, entry);
+    this.enqueue(async () => {
+      // Skipped when the record was deleted (or deleted and made again) before this request went out.
+      if (this.unsent.get(path) !== entry) return;
+      this.unsent.delete(path);
+      await api.put(path, entry.body);
+    });
+  }
+
+  private remoteDelete(path: string): void {
+    if (!apiMode) return;
+    this.unsent.delete(path);
+    this.enqueue(() => api.delete(path));
   }
 
   // ---------- Derived views ----------
@@ -179,16 +284,20 @@ export class DataService {
   addLearner(input: Omit<Learner, 'id' | 'createdAt'>): Learner {
     const learner: Learner = { ...input, id: uid('lrn'), createdAt: new Date().toISOString() };
     this.saveLearners([...this.learners(), learner]);
+    this.remotePut(`/learners/${learner.id}`, learner);
     return learner;
   }
 
   updateLearner(learner: Learner): void {
     this.saveLearners(this.learners().map((l) => (l.id === learner.id ? learner : l)));
+    this.remotePut(`/learners/${learner.id}`, learner);
   }
 
+  /** Removes the child and their reading checks (the server removes the checks with the child). */
   removeLearner(id: string): void {
     this.saveLearners(this.learners().filter((l) => l.id !== id));
     this.saveAssessments(this.assessments().filter((a) => a.learnerId !== id));
+    this.remoteDelete(`/learners/${id}`);
   }
 
   // ---------- Assessments ----------
@@ -196,6 +305,7 @@ export class DataService {
   addAssessment(input: Omit<Assessment, 'id'>): Assessment {
     const assessment: Assessment = { ...input, id: uid('asm') };
     this.saveAssessments([...this.assessments(), assessment]);
+    this.remotePut(`/assessments/${assessment.id}`, assessment);
     const learner = this.learner(input.learnerId);
     if (learner && learner.level !== input.level) this.updateLearner({ ...learner, level: input.level });
     return assessment;
@@ -226,11 +336,13 @@ export class DataService {
     const updated = { ...lesson, updatedAt: new Date().toISOString() };
     const exists = this.lessons().some((l) => l.id === lesson.id);
     this.saveLessons(exists ? this.lessons().map((l) => (l.id === lesson.id ? updated : l)) : [updated, ...this.lessons()]);
+    this.remotePut(`/lessons/${lesson.id}`, updated);
   }
 
   async deleteLesson(id: string): Promise<void> {
     const lesson = this.lesson(id);
     this.saveLessons(this.lessons().filter((l) => l.id !== id));
+    this.remoteDelete(`/lessons/${id}`);
     if (lesson) await this.deleteMedia(lesson);
   }
 
@@ -308,13 +420,18 @@ export class DataService {
     });
     this.saveUnits([unit, ...this.units()]);
     this.saveLessons([...lessons, ...this.lessons()]);
+    this.remotePut(`/units/${unit.id}`, unit);
+    for (const l of lessons) this.remotePut(`/lessons/${l.id}`, l);
     return unit;
   }
 
+  /** Removes the unit and its lessons (the server removes the lessons with the unit). */
   async deleteUnit(id: string): Promise<void> {
     const lessons = this.unitLessons(id);
     this.saveLessons(this.lessons().filter((l) => l.unitId !== id));
     this.saveUnits(this.units().filter((u) => u.id !== id));
+    for (const l of lessons) this.unsent.delete(`/lessons/${l.id}`);
+    this.remoteDelete(`/units/${id}`);
     for (const l of lessons) await this.deleteMedia(l);
   }
 
@@ -361,27 +478,28 @@ export class DataService {
     return published;
   }
 
+  /** Clears this browser's copies. With the API, the server's records are untouched. */
   resetAll(): void {
     local.clearAll();
-    media.clear().catch(() => undefined);
+    media.clearCache().catch(() => undefined);
   }
 
-  // ---------- Persistence ----------
+  // ---------- Persistence (with the API, records are kept on the server, not in this browser) ----------
 
   private saveLearners(v: Learner[]): void {
     this.learners.set(v);
-    local.set('learners', v);
+    if (!apiMode) local.set('learners', v);
   }
   private saveLessons(v: Lesson[]): void {
     this.lessons.set(v);
-    local.set('lessons', v);
+    if (!apiMode) local.set('lessons', v);
   }
   private saveUnits(v: Unit[]): void {
     this.units.set(v);
-    local.set('units', v);
+    if (!apiMode) local.set('units', v);
   }
   private saveAssessments(v: Assessment[]): void {
     this.assessments.set(v);
-    local.set('assessments', v);
+    if (!apiMode) local.set('assessments', v);
   }
 }

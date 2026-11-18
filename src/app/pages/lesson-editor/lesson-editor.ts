@@ -1,6 +1,7 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { ApiError, apiMode } from '../../core/api';
 import { DataService } from '../../core/data.service';
 import {
   Activity,
@@ -46,6 +47,11 @@ export class LessonEditor {
   readonly lesson = signal<Lesson | null>(null);
   readonly notFound = signal(false);
   readonly saved = signal<'saved' | 'saving' | 'idle'>('idle');
+  readonly savedText = computed(() => {
+    const s = this.saved();
+    if (s === 'saving' || (s === 'saved' && this.data.syncing())) return 'Saving…';
+    return s === 'saved' ? (apiMode ? 'Saved' : 'Saved in this browser') : '';
+  });
   readonly toast = signal('');
   readonly previewOpen = signal(false);
   readonly pictureError = signal('');
@@ -165,8 +171,10 @@ export class LessonEditor {
       const old = this.lesson()!.pages[index].pictureId;
       if (old) await media.delete(old).catch(() => undefined);
       this.patchPage(index, { pictureId: id, pictureBytes: blob.size });
-    } catch {
-      this.pictureError.set('That file could not be used as a picture. Try a JPG or PNG.');
+    } catch (err) {
+      this.pictureError.set(
+        err instanceof ApiError ? `The picture was not saved. ${err.message}` : 'That file could not be used as a picture. Try a JPG or PNG.',
+      );
     }
   }
 
