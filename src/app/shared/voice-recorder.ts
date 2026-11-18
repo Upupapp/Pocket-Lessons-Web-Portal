@@ -1,4 +1,5 @@
 import { Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { ApiError } from '../core/api';
 import { uid } from '../core/models';
 import { media } from '../core/storage';
 
@@ -163,7 +164,13 @@ export class VoiceRecorder {
     }
     const previous = this.audioId();
     const id = uid('aud');
-    await media.put(id, blob);
+    try {
+      await media.put(id, blob);
+    } catch (err) {
+      const reason = err instanceof ApiError ? err.message : 'This browser could not store it.';
+      this.error.set(`The recording was not saved. ${reason} Your earlier take is kept.`);
+      return;
+    }
     if (previous) await media.delete(previous).catch(() => undefined);
     this.recorded.emit({ audioId: id, audioBytes: blob.size, audioSeconds: seconds });
   }

@@ -1,9 +1,10 @@
 /**
- * Browser storage for the pilot preview.
- * - Small records (users, learners, lessons, assessments) live in localStorage as JSON.
- * - Recorded audio and pictures are binary and too big for localStorage, so they live in IndexedDB.
- * This is a stand-in until the Node API on Linode exists; the services are the only code that touches it.
+ * Browser storage.
+ * - Pilot preview: small records (users, learners, lessons, assessments) live in localStorage as JSON.
+ * - Recorded audio and pictures are binary, so they live in IndexedDB; with the API they are uploaded too.
+ * The services are the only code that touches it.
  */
+import { api, apiMode } from './api';
 
 const PREFIX = 'pl.v1.';
 
@@ -87,17 +88,43 @@ function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequ
   );
 }
 
+/** The recordings and pictures kept in this browser (IndexedDB). */
+const cache = {
+  put: (id: string, blob: Blob) => tx('readwrite', (s) => s.put(blob, id)),
+  get: (id: string) => tx<Blob | undefined>('readonly', (s) => s.get(id)),
+  delete: (id: string) => tx<undefined>('readwrite', (s) => s.delete(id)),
+  clear: () => tx<undefined>('readwrite', (s) => s.clear()),
+};
+
+/**
+ * Recorded voices and pictures.
+ * With the API, the server holds them and this browser keeps a cache; put() fails if the upload fails,
+ * so a lesson never points at a recording the server does not have.
+ */
 export const media = {
-  put(id: string, blob: Blob): Promise<IDBValidKey> {
-    return tx('readwrite', (s) => s.put(blob, id));
+  async put(id: string, blob: Blob): Promise<void> {
+    if (apiMode) await api.upload(`/media/${encodeURIComponent(id)}`, blob);
+    await cache.put(id, blob).catch((err) => {
+      if (!apiMode) throw err;
+    });
   },
-  get(id: string): Promise<Blob | undefined> {
-    return tx<Blob | undefined>('readonly', (s) => s.get(id));
+  async get(id: string): Promise<Blob | undefined> {
+    const cached = await cache.get(id).catch(() => undefined);
+    if (cached || !apiMode) return cached;
+    try {
+      const blob = await api.download(`/media/${encodeURIComponent(id)}`);
+      await cache.put(id, blob).catch(() => undefined);
+      return blob;
+    } catch {
+      return undefined;
+    }
   },
-  delete(id: string): Promise<undefined> {
-    return tx<undefined>('readwrite', (s) => s.delete(id));
+  async delete(id: string): Promise<void> {
+    if (apiMode) await api.delete(`/media/${encodeURIComponent(id)}`);
+    await cache.delete(id);
   },
-  clear(): Promise<undefined> {
-    return tx<undefined>('readwrite', (s) => s.clear());
+  /** Removes this browser's copies only. */
+  clearCache(): Promise<undefined> {
+    return cache.clear();
   },
 };
