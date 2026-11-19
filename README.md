@@ -85,6 +85,25 @@ Pages never call the server or the browser storage themselves. That work happens
 - Changes go one at a time and in order, so a unit is saved before its lessons.
 - If a change fails, a banner says so.
 - Recordings are uploaded before the lesson points to them.
+- Sessions renew by themselves. If the server ends a session, the teacher signs in again and returns to the page they were on.
+
+## Checking it with the server
+
+Before a release, run:
+
+1. `npm test` in this repository.
+2. `npm test` in the backend repository.
+3. `npm run build`. The build must not contain the local API address, so the Netlify site stays a pilot preview.
+
+Then sign in with `npm start` against a local API and work through every screen:
+
+- sign-in and joining;
+- learners and reading checks;
+- creating, recording and publishing a lesson;
+- importing a lesson file;
+- stopping the API mid-edit, which must show the "not saved" banner.
+
+The full check on 19 November 2026 passed all 57 steps.
 
 ## Not in this version
 
