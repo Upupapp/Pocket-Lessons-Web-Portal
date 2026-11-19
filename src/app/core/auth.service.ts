@@ -44,7 +44,10 @@ export class AuthService {
     if (apiMode) {
       onSessionEnded(() => {
         this.apiUser.set(null);
-        void this.router.navigateByUrl('/sign-in');
+        // Bring the teacher back to the page they were on after they sign in again.
+        // The address bar is used because the router may still be finishing its first navigation.
+        const here = location.pathname + location.search;
+        void this.router.navigate(['/sign-in'], here.startsWith('/app') ? { queryParams: { next: here } } : {});
       });
     }
   }
