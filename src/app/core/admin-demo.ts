@@ -104,6 +104,57 @@ const id = (prefix: string) => `${prefix}_${Date.now().toString(36)}${Math.rando
 
 export const DEMO_ADMIN = { id: 'usr_demo_admin', name: 'Maria Lopez', email: 'admin@aha.example', password: 'pocket2027', center: 'AHA Head Office' };
 
+/** Fictional children at two other centers, the same as the API's seed. AHA Sunrise is just starting. */
+const OTHER_CENTER_LEARNERS: [string, [string, number, string, string][]][] = [
+  [
+    'ctr_smokey',
+    [
+      ['Rose Domingo', 1, 'Beginner', 'Nena Domingo (mother)'],
+      ['Ben Aguilar', 2, 'Letter', 'Lito Aguilar (father)'],
+      ['Kim Valdez', 3, 'Letter', 'Susan Valdez (aunt)'],
+      ['Ana Lucero', 4, 'Word', 'Marites Lucero (mother)'],
+    ],
+  ],
+  [
+    'ctr_trias',
+    [
+      ['Ella Santiago', 1, 'Letter', 'Joy Santiago (mother)'],
+      ['Noel Pascual', 2, 'Word', 'Ramon Pascual (father)'],
+      ['Grace Tan', 3, 'Word', 'Linda Tan (grandmother)'],
+      ['Inigo Salazar', 4, 'Story', 'Carmen Salazar (mother)'],
+      ['Mae Fernandez', 2, 'Beginner', 'Rico Fernandez (father)'],
+      ['Leo Manalo', 3, 'Paragraph', 'Edna Manalo (mother)'],
+    ],
+  ],
+];
+
+function otherCenterStudents(): DStudent[] {
+  return OTHER_CENTER_LEARNERS.flatMap(([centerId, rows]) =>
+    rows.map(([name, grade, level, caregiver], i) => ({
+      id: `lrn_seed_${centerId.replace('ctr_', '')}_${i + 1}`,
+      name,
+      grade,
+      level,
+      avatar: null,
+      centerId,
+      classId: null,
+      familyId: null,
+      caregiver,
+      addedBy: 'staff' as const,
+      reviewedAt: null,
+      leftAt: null,
+      createdAt: iso(-(30 - i)),
+    })),
+  );
+}
+
+/** Adds sample records that later versions of the preview introduced, to a state saved by an earlier one. */
+export function upgradeState(state: AdminDemoState): AdminDemoState {
+  const known = new Set(state.students.map((s) => s.id));
+  const missing = otherCenterStudents().filter((s) => !known.has(s.id) && state.centers.some((c) => c.id === s.centerId));
+  return missing.length ? { ...state, students: [...state.students, ...missing] } : state;
+}
+
 /** The same sample records the API's seed creates. */
 export function sampleState(): AdminDemoState {
   const t = 'ctr_tondo';
@@ -157,6 +208,7 @@ export function sampleState(): AdminDemoState {
     child('lrn_seed_migo', 'fam_seed_santos', 'Migo Santos', 1, 'Letter', 'owl', 'cls_seed_a', 'staff'),
     child('lrn_seed_kiko', 'fam_seed_reyes', 'Kiko Reyes', 2, 'Letter', 'teddy-bear', 'cls_seed_a', 'staff'),
     child('lrn_seed_lia', 'fam_seed_santos', 'Lia Santos', 1, 'Beginner', 'fish', null, 'parent'),
+    ...otherCenterStudents(),
   );
   return {
     version: 1,

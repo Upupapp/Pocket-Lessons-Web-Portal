@@ -16,6 +16,7 @@ import {
   uid,
 } from './models';
 import { UnitPlan } from './lesson-import';
+import { baselineDay, baselineLevel, neverChecked, sampleHistory } from './sample-history';
 import { local, media } from './storage';
 
 /** Pack overhead for the lesson manifest and app metadata. */
@@ -54,21 +55,33 @@ function seedLearners(): Learner[] {
   }));
 }
 
+/** Twelve weeks of made-up reading checks for the sample learners, so the dashboard charts have shape. */
+function historyFor(learners: Learner[]): Assessment[] {
+  return sampleHistory(learners.filter((l) => /^lrn_seed_\d+$/.test(l.id))).map(({ daysAgo, ...h }) => ({
+    ...h,
+    level: h.level as Level,
+    previousLevel: h.previousLevel as Level,
+    date: iso(daysAgo),
+    by: 'Ana Reyes',
+  }));
+}
+
 function seedAssessments(learners: Learner[]): Assessment[] {
   const out: Assessment[] = [];
   learners.forEach((l, i) => {
-    // Baseline placement for most learners; three still need their first check.
-    if (i % 5 === 4) return;
+    // Baseline placement for most learners; two still need their first check.
+    if (neverChecked(i)) return;
     out.push({
       id: `asm_seed_p${i}`,
       learnerId: l.id,
       type: 'placement',
-      date: iso(40 - i),
-      level: l.level,
+      date: iso(baselineDay(i)),
+      level: baselineLevel(i, l.level) as Level,
       note: 'Baseline placement (sample).',
       by: 'Ana Reyes',
     });
   });
+  out.push(...historyFor(learners));
   out.push({
     id: 'asm_seed_f1',
     learnerId: 'lrn_seed_1',
@@ -167,6 +180,20 @@ export class DataService {
       local.set('lessons', seedLessons());
       local.set('assessments', seedAssessments(learners));
       local.set('seeded', true);
+      local.set('sampleHistory', true);
+    } else if (!local.get<boolean>('sampleHistory', false)) {
+      // Browsers that opened the preview before the charts existed get the sample history once.
+      const learners = local.get<Learner[]>('learners', []);
+      const level = new Map(learners.map((l) => [l.id, l.level]));
+      const existing = local.get<Assessment[]>('assessments', []).map((a) => {
+        // A sample learner who moved a level later was first placed at the earlier level.
+        const m = /^asm_seed_p(\d+)$/.exec(a.id);
+        const now = level.get(a.learnerId);
+        return m && now ? { ...a, level: baselineLevel(Number(m[1]), now) as Level } : a;
+      });
+      const known = new Set(existing.map((a) => a.id));
+      local.set('assessments', [...existing, ...historyFor(learners).filter((a) => !known.has(a.id))]);
+      local.set('sampleHistory', true);
     }
     this.learners.set(local.get<Learner[]>('learners', []));
     this.lessons.set(local.get<Lesson[]>('lessons', []));

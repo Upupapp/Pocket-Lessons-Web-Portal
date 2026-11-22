@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { AdminDemoError, AdminDemoState, AdminDemoStore, sampleState } from './admin-demo';
+import { AdminDemoError, AdminDemoState, AdminDemoStore, sampleState, upgradeState } from './admin-demo';
 import {
   ActivationCodeInfo,
   AdminCenter,
@@ -24,7 +24,7 @@ export function adminDemo(): AdminDemoStore {
   if (!demoStore) {
     const saved = local.get<AdminDemoState | null>('admin', null);
     const origin = typeof location !== 'undefined' ? location.origin : 'http://localhost:4200';
-    demoStore = new AdminDemoStore(saved?.version === 1 ? saved : sampleState(), (s) => local.set('admin', s), origin);
+    demoStore = new AdminDemoStore(saved?.version === 1 ? upgradeState(saved) : sampleState(), (s) => local.set('admin', s), origin);
   }
   return demoStore;
 }
