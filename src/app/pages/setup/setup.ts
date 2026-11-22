@@ -2,22 +2,15 @@ import { Component, OnInit, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { Logo } from '../../shared/logo';
+import { BrandPanel } from '../../shared/brand-panel';
 
 /** W-01 A new teacher opens the administrator's one-time setup link and chooses their own password. */
 @Component({
   selector: 'pl-setup',
-  imports: [FormsModule, RouterLink, Logo],
+  imports: [FormsModule, RouterLink, BrandPanel],
   template: `
-    <main class="wrap">
-      <section class="side" aria-hidden="true">
-        <pl-logo [light]="true" variant="full" [height]="76" />
-        <div>
-          <p class="big">Welcome to Pocket Lessons.</p>
-          <p class="small-print">Your administrator set up your teacher account. Choose a password to start.</p>
-        </div>
-        <p class="credit">AHA Learning Center × UpUp Technologies</p>
-      </section>
+    <main class="wrap ws">
+      <pl-brand-panel class="side" quote="Welcome to Pocket Lessons." sub="Your administrator set up your teacher account. Choose a password to start." />
       <section class="panel">
         <div class="card form-card">
           @if (state() === 'loading') {
@@ -27,7 +20,6 @@ import { Logo } from '../../shared/logo';
             <p class="error-text" role="alert">{{ error() }}</p>
             <a class="btn btn-primary" routerLink="/sign-in">Go to sign in</a>
           } @else {
-            <p class="eyebrow">Set up your account</p>
             <h1>Hello, {{ info()?.name }}</h1>
             <p class="muted">You are joining <strong>{{ info()?.center }}</strong> as {{ info()?.email }}.</p>
             <form (ngSubmit)="save()" novalidate>
@@ -49,20 +41,14 @@ import { Logo } from '../../shared/logo';
   `,
   styles: `
     .wrap { min-height: 100vh; display: grid; grid-template-columns: 5fr 7fr; }
-    .side {
-      background: radial-gradient(110% 90% at 20% 0%, #0E4943, #0B3B37 55%, #072B27);
-      padding: 32px 40px; display: flex; flex-direction: column; justify-content: space-between; color: #FFF9ED;
-    }
-    .big { font-family: var(--serif); font-size: clamp(28px, 3vw, 40px); line-height: 1.15; }
-    .small-print { margin-top: 12px; color: #B9D6CE; }
-    .credit { color: rgba(210, 230, 223, .7); font-size: 13px; }
-    .panel { display: flex; align-items: center; justify-content: center; padding: 32px 20px; }
+    .wrap.ws { background: #fff; }
+    .panel { display: flex; align-items: center; justify-content: center; padding: 32px 20px; background: #fff; }
     .form-card { width: min(440px, 100%); padding: 28px; display: grid; gap: 10px; }
     h1 { font-family: var(--serif); font-size: 30px; }
     form { display: grid; gap: 16px; margin-top: 10px; }
     .full { width: 100%; }
     .note { margin-top: 6px; }
-    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } .side { min-height: 180px; gap: 16px; } }
+    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } }
   `,
 })
 export class Setup implements OnInit {

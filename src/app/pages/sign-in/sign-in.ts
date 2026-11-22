@@ -4,21 +4,14 @@ import { Router, RouterLink } from '@angular/router';
 import { apiMode } from '../../core/api';
 import { AuthService, DEMO_ACCOUNT, DEMO_ADMIN_ACCOUNT } from '../../core/auth.service';
 import { local } from '../../core/storage';
-import { Logo } from '../../shared/logo';
+import { BrandPanel } from '../../shared/brand-panel';
 
 @Component({
   selector: 'pl-sign-in',
-  imports: [FormsModule, RouterLink, Logo],
+  imports: [FormsModule, RouterLink, BrandPanel],
   template: `
-    <main class="wrap">
-      <section class="side" aria-hidden="true">
-        <pl-logo [light]="true" variant="full" [height]="76" />
-        <div class="quote">
-          <p class="big">“Tuloy ang aral, kahit walang signal.”</p>
-          <p class="small-print">Teacher portal for AHA community learning centers</p>
-        </div>
-        <p class="credit">AHA Learning Center × UpUp Technologies</p>
-      </section>
+    <main class="wrap ws">
+      <pl-brand-panel class="side" quote="“Tuloy ang aral, kahit walang signal.”" sub="Teacher portal for AHA community learning centers" />
 
       <section class="panel">
         <div class="card form-card">
@@ -81,15 +74,10 @@ import { Logo } from '../../shared/logo';
   `,
   styles: `
     .wrap { min-height: 100vh; display: grid; grid-template-columns: 5fr 7fr; }
-    .side {
-      background: radial-gradient(110% 90% at 20% 0%, #0E4943, #0B3B37 55%, #072B27);
-      padding: 32px 40px; display: flex; flex-direction: column; justify-content: space-between; color: #FFF9ED;
-    }
-    .big { font-family: var(--serif); font-size: clamp(28px, 3vw, 40px); line-height: 1.15; }
-    .small-print { margin-top: 12px; color: #B9D6CE; }
-    .credit { color: rgba(210, 230, 223, .7); font-size: 13px; }
-    .panel { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; }
-    .form-card { width: min(440px, 100%); padding: 28px; }
+    .wrap.ws { background: #fff; }
+    .panel { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; background: #fff; }
+    .form-card { width: min(440px, 100%); padding: 28px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
     .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--cream-2); border-radius: 999px; padding: 4px; margin-bottom: 24px; }
     .tabs button { border: 0; background: transparent; border-radius: 999px; min-height: 38px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
     .tabs button.on { background: var(--white); color: var(--ink); box-shadow: 0 1px 4px rgba(22, 60, 59, .15); }
@@ -99,10 +87,11 @@ import { Logo } from '../../shared/logo';
     .pw .input { padding-right: 64px; }
     .link { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--teal); font: 700 13px var(--font); cursor: pointer; padding: 6px; }
     .full { width: 100%; }
-    .demo { margin-top: 20px; padding: 14px; border-radius: var(--r-md); background: var(--sun-soft); display: grid; gap: 10px; font-size: 14px; }
+    .demo { margin-top: 20px; padding: 14px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); display: grid; gap: 10px; font-size: 14px; color: var(--ink-2); }
     .demo-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
     .note { text-align: center; max-width: 440px; }
-    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } .side { min-height: 200px; gap: 20px; } }
+    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } }
+    @media (prefers-reduced-motion: reduce) { .form-card { animation: none; } }
   `,
 })
 export class SignIn {
