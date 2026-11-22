@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { LEVELS, Learner, levelIndex } from '../../core/models';
+import { LineChart, LinePoint } from '../../shared/charts/line-chart';
 
-/** Learner profile with reading-level path and check history (WEB-03). */
+/** Learner profile with reading-level path, reading speed and check history (WEB-03). */
 @Component({
   selector: 'pl-learner-detail',
-  imports: [RouterLink, DatePipe, FormsModule],
+  imports: [RouterLink, DatePipe, FormsModule, LineChart],
   template: `
     @if (learner(); as l) {
       <a routerLink="/app/learners" class="back">← All learners</a>
@@ -56,8 +57,22 @@ import { LEVELS, Learner, levelIndex } from '../../core/models';
       </section>
 
       <section class="card">
+        <pl-line-chart
+          title="Reading speed"
+          [caption]="speedCaption()"
+          [points]="speed()"
+          unit="wcpm"
+          valueName="Words correct per minute"
+          period="Timed reading"
+          [height]="190"
+          empty="No timed readings yet. A one-minute timed reading starts this line."
+        />
+      </section>
+
+      <section class="card">
         <h2>Checks</h2>
         @if (history().length) {
+          <div class="table-scroll">
           <table class="table">
             <thead><tr><th>Date</th><th>Check</th><th>Level</th><th>Result</th><th>Note</th></tr></thead>
             <tbody>
@@ -67,16 +82,17 @@ import { LEVELS, Learner, levelIndex } from '../../core/models';
                   <td>{{ a.type === 'placement' ? 'Reading level' : 'Timed reading' }}</td>
                   <td>
                     @if (a.previousLevel && a.previousLevel !== a.level) { <span class="small muted">{{ a.previousLevel }} → </span> }
-                    <span class="pill pill-sun">{{ a.level }}</span>
+                    <span class="lvl" [attr.data-level]="a.level">{{ a.level }}</span>
                   </td>
                   <td class="small">
-                    @if (a.type === 'fluency') { {{ a.accuracy }}% · {{ a.wcpm }} wcpm } @else { — }
+                    @if (a.type === 'fluency') { {{ a.wcpm }} wcpm · {{ a.accuracy }}% } @else { — }
                   </td>
                   <td class="small muted">{{ a.note || '—' }}</td>
                 </tr>
               }
             </tbody>
           </table>
+          </div>
         } @else {
           <div class="empty">No checks yet. Start with a reading-level check to set a baseline.</div>
         }
@@ -88,23 +104,25 @@ import { LEVELS, Learner, levelIndex } from '../../core/models';
   styles: `
     .back { font-weight: 700; text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 10px; }
     .who { display: flex; gap: 14px; align-items: center; }
-    .avatar { width: 60px; height: 60px; border-radius: 50%; background: var(--sun); color: #3d2e00; display: grid; place-items: center; font: 700 26px var(--serif); }
+    .avatar { width: 60px; height: 60px; border-radius: 50%; background: var(--accent-tint); border: 1px solid var(--accent-tint-2); color: var(--title); display: grid; place-items: center; font: 700 26px var(--serif); }
     .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .table-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+    .table-scroll td:first-child { white-space: nowrap; }
     .end { justify-content: flex-end; grid-column: 1 / -1; }
     .edit { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
     section { margin-bottom: 20px; }
     h2 { font-family: var(--serif); font-size: 20px; margin-bottom: 16px; }
     .path { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); position: relative; }
-    .path li { display: grid; justify-items: center; gap: 6px; position: relative; text-align: center; }
+    .path li { display: grid; justify-items: center; align-content: start; gap: 6px; position: relative; text-align: center; }
     .path li::before { content: ''; position: absolute; top: 18px; left: -50%; width: 100%; height: 4px; background: var(--line); z-index: 0; }
     .path li:first-child::before { display: none; }
     .path li.reached::before { background: var(--teal); }
     .dot { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--white); border: 3px solid var(--line); font-weight: 700; z-index: 1; }
     .reached .dot { border-color: var(--teal); background: var(--mint); color: var(--teal-dark); }
-    .now .dot { background: var(--teal); color: #fff; box-shadow: 0 0 0 6px rgba(20, 107, 96, .15); }
+    .now .dot { background: var(--teal); color: #fff; box-shadow: 0 0 0 6px rgba(20, 107, 96, .12); }
     .lv { font-weight: 700; font-size: 14px; }
     .tag { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--cream-2); color: var(--muted); }
-    .now-tag { background: var(--sun); color: #3d2e00; }
+    .now-tag { background: var(--accent-tint); color: var(--title); border: 1px solid var(--accent-tint-2); }
     @media (max-width: 700px) { .edit { grid-template-columns: 1fr; } .lv { font-size: 12px; } }
   `,
 })
@@ -121,6 +139,22 @@ export class LearnerDetail {
     return first ? levelIndex(first.previousLevel ?? first.level) : -1;
   });
   readonly editing = signal<Learner | null>(null);
+
+  /** This child's timed readings, oldest first. */
+  readonly speed = computed<LinePoint[]>(() =>
+    this.history()
+      .filter((a) => a.type === 'fluency' && typeof a.wcpm === 'number')
+      .reverse()
+      .map((a) => {
+        const d = new Date(a.date);
+        const day = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+        return { label: day, long: `${day} ${d.getFullYear()} · ${a.accuracy ?? '—'}% correct`, value: a.wcpm! };
+      }),
+  );
+  readonly speedCaption = computed(() => {
+    const n = this.speed().length;
+    return n ? `Words correct per minute in each of ${this.learner()?.name.split(' ')[0]}'s ${n} timed reading${n === 1 ? '' : 's'}.` : '';
+  });
 
   startEdit(l: Learner): void {
     this.editing.set({ ...l });
