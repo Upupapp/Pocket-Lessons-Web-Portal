@@ -1,11 +1,13 @@
 import { Component, DestroyRef, ElementRef, HostListener, computed, inject, output, signal, viewChild } from '@angular/core';
 import { API_URL } from '../core/api';
 import { ConnectionWatch } from '../core/connection';
-import { ART_H, ART_W, EXTRA, EXTRA_X, Frame, Geometry, LETTER_COUNT, ORBIT, TOTAL_MS, X0, Y0, easeInCubic, frame, geometry } from './splash-frame';
+import { ART_H, ART_W, EXTRA, EXTRA_X, Frame, Geometry, LETTER_COUNT, ORBIT, TOTAL_MS, X0, Y0, frame, geometry } from './splash-frame';
+
+const easeInOut = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
 /** The web plays the phone's 6 s timeline a little faster (teachers open the portal often). */
 const SPEED = 1 / 0.8;
-const EXIT_MS = 700;
+const EXIT_MS = 850;
 const LAYERS = 'brand/intro/';
 const LETTER_SRC = Array.from({ length: LETTER_COUNT }, (_, i) => `${LAYERS}letter-${String(i).padStart(2, '0')}.svg`);
 const PRELOAD = [
@@ -31,7 +33,7 @@ const CONFETTI = Array.from({ length: 22 }, (_, i) => ({
 @Component({
   selector: 'pl-splash',
   template: `
-    <div class="splash" [class.leaving]="leaving()" [style.clip-path]="clip()" role="dialog" aria-modal="true" aria-label="Pocket Lessons is starting">
+    <div class="splash" [class.leaving]="leaving()" [style.mask-image]="mask()" role="dialog" aria-modal="true" aria-label="Pocket Lessons is starting">
       <div class="bg" [style.background]="f().background"></div>
       <div class="confetti" aria-hidden="true" [style.opacity]="f().confetti">
         @for (c of confetti; track $index) {
@@ -281,7 +283,7 @@ export class Splash {
   readonly f = signal<Frame>(frame(0, 0, this.g(), 0, (s) => this.measure(s)));
   readonly bar = signal(0);
   readonly rocketTop = signal(2);
-  readonly clip = signal('none');
+  readonly mask = signal('none');
   readonly leaving = signal(false);
   readonly lift = signal(0);
   private readonly elapsed = signal(0);
@@ -393,11 +395,11 @@ export class Splash {
     if (!this.finished && connected && m >= TOTAL_MS && bar >= 1) this.finish();
 
     if (this.finished) {
-      // Leave with a circle, like the phone: the intro closes into the logo and the page shows around it.
+      // Leave like the phone: the next page opens out of the logo in a growing circle.
       const p = Math.min(1, (now - this.exitAt) / (this.reduced ? 250 : EXIT_MS));
       const g = this.g();
-      const r = Math.hypot(Math.max(g.cx, g.w - g.cx), Math.max(g.cy, g.h - g.cy)) * (1 - easeInCubic(p));
-      this.clip.set(`circle(${r}px at ${g.cx}px ${g.cy}px)`);
+      const r = Math.hypot(Math.max(g.cx, g.w - g.cx), Math.max(g.cy, g.h - g.cy)) * easeInOut(p);
+      this.mask.set(`radial-gradient(circle at ${g.cx}px ${g.cy}px, transparent ${r}px, #000 ${r + 1}px)`);
       if (p >= 1) {
         this.done.emit();
         return;
