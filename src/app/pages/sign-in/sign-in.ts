@@ -2,7 +2,7 @@ import { Component, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { apiMode } from '../../core/api';
-import { AuthService, DEMO_ACCOUNT } from '../../core/auth.service';
+import { AuthService, DEMO_ACCOUNT, DEMO_ADMIN_ACCOUNT } from '../../core/auth.service';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
 
@@ -46,8 +46,11 @@ import { Logo } from '../../shared/logo';
               <button class="btn btn-primary full" type="submit" [disabled]="busy()">{{ busy() ? 'Signing in…' : 'Sign in' }}</button>
             </form>
             <div class="demo">
-              <p><strong>Pilot preview.</strong> Use the sample teacher account. All names and figures are sample data.</p>
-              <button type="button" class="btn btn-ghost btn-sm" (click)="useDemo()">Use sample account</button>
+              <p><strong>Pilot preview.</strong> Use a sample account. All names and figures are sample data.</p>
+              <div class="demo-buttons">
+                <button type="button" class="btn btn-ghost btn-sm" (click)="useDemo()">Sample teacher</button>
+                <button type="button" class="btn btn-ghost btn-sm" (click)="useAdmin()">Sample administrator</button>
+              </div>
             </div>
           } @else {
             <h1>Join your center</h1>
@@ -55,7 +58,7 @@ import { Logo } from '../../shared/logo';
             <form (ngSubmit)="join()" novalidate>
               <label class="field"><span>Invitation code</span>
                 <input class="input" name="code" required [(ngModel)]="code" placeholder="e.g. TONDO-2027" autocapitalize="characters" />
-                <span class="hint">Pilot preview codes: TONDO-2027, SUNRISE-2027, SMOKEY-2027, TRIAS-2027</span>
+                <span class="hint">Pilot preview codes: TONDO-2027, SUNRISE-2027, SMOKEY-2027, TRIAS-2027. New teachers can also use a setup link from the administrator.</span>
               </label>
               <label class="field"><span>Full name</span><input class="input" name="name" required autocomplete="name" [(ngModel)]="name" /></label>
               <label class="field"><span>Email</span><input class="input" type="email" name="jemail" required autocomplete="email" [(ngModel)]="email" /></label>
@@ -97,7 +100,7 @@ import { Logo } from '../../shared/logo';
     .link { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--teal); font: 700 13px var(--font); cursor: pointer; padding: 6px; }
     .full { width: 100%; }
     .demo { margin-top: 20px; padding: 14px; border-radius: var(--r-md); background: var(--sun-soft); display: grid; gap: 10px; font-size: 14px; }
-    .demo .btn { justify-self: start; }
+    .demo-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
     .note { text-align: center; max-width: 440px; }
     @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } .side { min-height: 200px; gap: 20px; } }
   `,
@@ -128,6 +131,12 @@ export class SignIn {
     void this.signIn();
   }
 
+  useAdmin(): void {
+    this.email = DEMO_ADMIN_ACCOUNT.email;
+    this.password = DEMO_ADMIN_ACCOUNT.password;
+    void this.signIn();
+  }
+
   async signIn(): Promise<void> {
     this.error.set('');
     if (!this.email || !this.password) return this.error.set('Enter your email and password.');
@@ -149,7 +158,9 @@ export class SignIn {
   }
 
   private go(): void {
-    const target = this.next() && this.next().startsWith('/app') ? this.next() : '/app';
+    // Return to the page the person was on, but only inside their own area (/admin or /app).
+    const home = this.auth.home();
+    const target = this.next() && this.next().startsWith(home) ? this.next() : home;
     void this.router.navigateByUrl(target);
   }
 }
