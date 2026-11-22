@@ -17,6 +17,7 @@ import {
 } from './models';
 import { UnitPlan } from './lesson-import';
 import { baselineDay, baselineLevel, neverChecked, sampleHistory } from './sample-history';
+import type { SubjectKey } from './subjects';
 import { local, media } from './storage';
 
 /** Pack overhead for the lesson manifest and app metadata. */
@@ -110,6 +111,7 @@ function seedLessons(): Lesson[] {
       title: 'Si Mimi',
       level: 'Word',
       language: 'Filipino',
+      subject: 'pagbasa',
       objective: 'Read and match simple words about a cat.',
       minutes: 8,
       pages: [
@@ -194,6 +196,11 @@ export class DataService {
       const known = new Set(existing.map((a) => a.id));
       local.set('assessments', [...existing, ...historyFor(learners).filter((a) => !known.has(a.id))]);
       local.set('sampleHistory', true);
+    }
+    // The sample lesson made before subjects existed gets its subject (a teacher's own choice is kept).
+    const saved = local.get<Lesson[]>('lessons', []);
+    if (saved.some((l) => l.id === 'lsn_seed_mimi' && !l.subject)) {
+      local.set('lessons', saved.map((l) => (l.id === 'lsn_seed_mimi' && !l.subject ? { ...l, subject: 'pagbasa' as const } : l)));
     }
     this.learners.set(local.get<Learner[]>('learners', []));
     this.lessons.set(local.get<Lesson[]>('lessons', []));
@@ -413,6 +420,7 @@ export class DataService {
     const base = {
       level: info.level,
       language: info.language,
+      subject: info.subject,
       status: 'draft' as const,
       version: 1,
       assignedLevels: [info.level],
@@ -452,6 +460,16 @@ export class DataService {
     return unit;
   }
 
+  /** Puts a whole unit, and every lesson in it, in another subject world. */
+  setUnitSubject(unitId: string, subject: SubjectKey): void {
+    const unit = this.unit(unitId);
+    if (!unit) return;
+    const updated = { ...unit, subject };
+    this.saveUnits(this.units().map((u) => (u.id === unitId ? updated : u)));
+    this.remotePut(`/units/${unitId}`, updated);
+    for (const l of this.unitLessons(unitId)) this.saveLesson({ ...l, subject });
+  }
+
   /** Removes the unit and its lessons (the server removes the lessons with the unit). */
   async deleteUnit(id: string): Promise<void> {
     const lessons = this.unitLessons(id);
@@ -478,6 +496,7 @@ export class DataService {
     const checkpoint = lesson.kind === 'checkpoint';
     return [
       { label: 'Lesson has a title', ok: lesson.title.trim().length > 0 },
+      { label: 'Subject chosen', ok: !!lesson.subject, detail: lesson.subject ? undefined : 'Choose a subject in Lesson basics' },
       { label: 'Every page has text', ok: lesson.pages.length > 0 && noText === 0, detail: noText ? `${noText} page(s) empty` : undefined },
       {
         label: 'Every page has your recorded voice',

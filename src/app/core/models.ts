@@ -1,3 +1,5 @@
+import type { SubjectKey } from './subjects';
+
 /** Teaching at the Right Level (TaRL) reading levels, lowest to highest. */
 export const LEVELS = ['Beginner', 'Letter', 'Word', 'Paragraph', 'Story'] as const;
 export type Level = (typeof LEVELS)[number];
@@ -90,6 +92,8 @@ export interface Lesson {
   kind?: LessonKind;
   /** Words that come back in spaced review if the child misses them. */
   reviewWords?: string[];
+  /** The subject world children see it in. Needed before publishing. */
+  subject?: SubjectKey;
 }
 
 /** A story split into short lessons on one learning path, ending with a checkpoint. */
@@ -102,6 +106,8 @@ export interface Unit {
   /** The file the unit was imported from, and the label printed on it (e.g. "Reading for Grades 1-2 · Aralin 1"). */
   sourceFile?: string;
   sourceLabel?: string;
+  /** The subject world of the whole unit; its lessons share it. */
+  subject?: SubjectKey;
   createdAt: string;
 }
 
