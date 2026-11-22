@@ -11,7 +11,7 @@ import { Logo } from '../../shared/logo';
   template: `
     <main class="wrap">
       <section class="side" aria-hidden="true">
-        <pl-logo [light]="true" />
+        <pl-logo [light]="true" variant="full" [height]="76" />
         <div>
           <p class="big">Welcome to Pocket Lessons.</p>
           <p class="small-print">Your administrator set up your teacher account. Choose a password to start.</p>

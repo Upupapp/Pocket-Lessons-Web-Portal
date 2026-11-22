@@ -41,7 +41,7 @@ const SLIDES: Slide[] = [
   template: `
     <main class="wrap">
       <section class="art" aria-hidden="true">
-        <pl-logo [light]="true" />
+        <pl-logo [light]="true" variant="full" [height]="76" />
         <div class="stage">
           @switch (index()) {
             @case (0) {

@@ -12,7 +12,7 @@ import { Logo } from '../../shared/logo';
   template: `
     <main class="wrap">
       <section class="side" aria-hidden="true">
-        <pl-logo [light]="true" />
+        <pl-logo [light]="true" variant="full" [height]="76" />
         <div class="quote">
           <p class="big">“Tuloy ang aral, kahit walang signal.”</p>
           <p class="small-print">Teacher portal for AHA community learning centers</p>
