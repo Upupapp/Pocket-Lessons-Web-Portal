@@ -142,6 +142,7 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, { body }),
+  patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, { body }),
   post: <T>(path: string, body: unknown, auth = true) => request<T>('POST', path, { body, auth }),
   delete: (path: string) => request<void>('DELETE', path),
   upload: (path: string, blob: Blob) => request<unknown>('PUT', path, { raw: blob }),
