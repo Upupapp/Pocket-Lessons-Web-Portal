@@ -11,7 +11,6 @@ import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Learners</p>
         <h1>Learners and reading groups</h1>
         <p>Children are grouped by reading level, not by grade. Lessons go to the group.</p>
       </div>
@@ -64,7 +63,7 @@ import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
               <tr>
                 <td><a class="name" [routerLink]="['/app/learners', r.l.id]">{{ r.l.name }}</a></td>
                 <td>{{ r.l.grade }}</td>
-                <td><span class="pill pill-sun">{{ r.l.level }}</span></td>
+                <td><span class="lvl" [attr.data-level]="r.l.level">{{ r.l.level }}</span></td>
                 <td>
                   @if (r.days === null) { <span class="pill pill-red">Never checked</span> }
                   @else if (r.days > 30) { <span class="pill pill-red">{{ r.days }} days ago</span> }
@@ -88,9 +87,9 @@ import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
     .row { margin-top: 14px; }
     .groups { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
     .group { border: 1px solid var(--line); background: var(--white); border-radius: var(--r-md); padding: 12px; text-align: left; cursor: pointer; display: grid; font: 400 13px var(--font); color: var(--muted); }
-    .group strong { font: 700 24px var(--serif); color: var(--ink); }
-    .group.on { border-color: var(--teal); background: var(--teal); color: #d2e6df; }
-    .group.on strong { color: #fff; }
+    .group strong { font: 600 24px var(--font); color: var(--ink); }
+    .group.on { border-color: var(--accent); background: var(--accent-tint); color: var(--title); }
+    .group.on strong { color: var(--title); }
     .table-card { padding: 8px 8px 4px; overflow-x: auto; }
     .tools { padding: 8px 8px 12px; }
     .tools .input { max-width: 280px; }

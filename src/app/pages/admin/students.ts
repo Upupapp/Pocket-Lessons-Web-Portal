@@ -1,17 +1,17 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { AdminCenter, AdminClass, AdminStudent, avatarEmoji } from '../../core/admin-models';
+import { AdminCenter, AdminClass, AdminStudent } from '../../core/admin-models';
+import { KidAvatar } from '../../shared/kid-avatar';
 import { AdminService, adminError } from '../../core/admin.service';
 
 /** A-16 Students in every center: move to another class, mark as left (records are kept). */
 @Component({
   selector: 'pl-admin-students',
-  imports: [FormsModule],
+  imports: [FormsModule, KidAvatar],
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Students</p>
         <h1>Students</h1>
         <p>Every child in the program. Children are added with their family, or by their parent on the phone.</p>
       </div>
@@ -44,13 +44,13 @@ import { AdminService, adminError } from '../../core/admin.service';
             @for (s of rows(); track s.id) {
               <tr [class.dim]="s.left">
                 <td>
-                  <span class="adm-avatar" aria-hidden="true">{{ emoji(s.avatar) }}</span>
+                  <pl-kid class="adm-avatar" [avatar]="s.avatar" [name]="s.name" aria-hidden="true" />
                   <strong>{{ s.name }}</strong>
-                  @if (s.addedBy === 'parent') { <span class="pill pill-sun by">Added by parent</span> }
+                  @if (s.addedBy === 'parent') { <span class="pill pill-grey by">Added by parent</span> }
                   @if (s.left) { <span class="pill pill-grey by">Left</span> }
                 </td>
                 <td>{{ s.grade }}</td>
-                <td><span class="pill pill-sun">{{ s.level }}</span></td>
+                <td><span class="lvl" [attr.data-level]="s.level">{{ s.level }}</span></td>
                 <td>
                   <select class="select sm" [ngModel]="s.classId" (ngModelChange)="move(s, $event)" [name]="'cls-' + s.id" [attr.aria-label]="'Class of ' + s.name" [disabled]="s.left || busy()">
                     <option [ngValue]="null">No class</option>
@@ -87,7 +87,6 @@ import { AdminService, adminError } from '../../core/admin.service';
 })
 export class AdminStudentsPage {
   private readonly admin = inject(AdminService);
-  readonly emoji = avatarEmoji;
   readonly centers = signal<AdminCenter[]>([]);
   readonly classes = signal<AdminClass[]>([]);
   readonly students = signal<AdminStudent[]>([]);

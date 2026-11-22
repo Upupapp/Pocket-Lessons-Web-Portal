@@ -10,7 +10,6 @@ import { AdminService, adminError } from '../../core/admin.service';
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Audit log</p>
         <h1>Audit log</h1>
         <p>Every change by the administrator and the teachers. Records are named by their ID only, never by children's names.</p>
       </div>

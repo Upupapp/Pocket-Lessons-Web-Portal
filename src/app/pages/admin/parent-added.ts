@@ -1,16 +1,16 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AdminStudent, ago, avatarEmoji, fmtDate } from '../../core/admin-models';
+import { AdminStudent, ago, fmtDate } from '../../core/admin-models';
+import { KidAvatar } from '../../shared/kid-avatar';
 import { AdminService, adminError } from '../../core/admin.service';
 
 /** A-15 Children added by parents on the phone. Approved automatically; the administrator marks them as seen. */
 @Component({
   selector: 'pl-admin-parent-added',
-  imports: [RouterLink],
+  imports: [RouterLink, KidAvatar],
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Added by parents</p>
         <h1>Children added by parents</h1>
         <p>Parents can add a child on the phone, even without signal. The child can learn at once; no approval is needed.</p>
       </div>
@@ -32,7 +32,7 @@ import { AdminService, adminError } from '../../core/admin.service';
       @for (s of rows(); track s.id) {
         <article class="card kid" [class.seen]="s.reviewed">
           <div class="who">
-            <span class="big-avatar" aria-hidden="true">{{ emoji(s.avatar) }}</span>
+            <span class="big-avatar" aria-hidden="true"><pl-kid [avatar]="s.avatar" [name]="s.name" [size]="36" /></span>
             <div>
               <h2>{{ s.name }}</h2>
               <p class="small muted">Grade {{ s.grade }} · {{ s.center }}</p>
@@ -80,7 +80,6 @@ import { AdminService, adminError } from '../../core/admin.service';
 })
 export class AdminParentAddedPage {
   private readonly admin = inject(AdminService);
-  readonly emoji = avatarEmoji;
   readonly fmt = fmtDate;
   readonly ago = ago;
   readonly list = signal<AdminStudent[]>([]);

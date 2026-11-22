@@ -1,6 +1,5 @@
 <div class="page-head">
   <div>
-    <p class="eyebrow">Assess</p>
     <h1>Check a child's reading</h1>
     <p>Place a child on a reading level, or time their reading of a lesson. Results update their level and history.</p>
   </div>
@@ -80,13 +79,12 @@
         </div>
         @if (placed(); as lv) {
           <div class="placed">
-            <p class="eyebrow">Result</p>
             <h2 class="serif big">{{ lv }}</h2>
-            <p class="muted">{{ levelHint[lv] }}</p>
+            <p class="muted">Reading level result · {{ levelHint[lv] }}</p>
             <button type="button" class="link" (click)="restartPlacement()">Start the check again</button>
           </div>
         } @else {
-          <p class="eyebrow">Show the child: {{ tool[node()].title }}</p>
+          <p class="label">Show the child: {{ tool[node()].title }}</p>
           <div class="reading-card" lang="fil">{{ tool[node()].show }}</div>
           <p class="ask">{{ tool[node()].ask }}</p>
           <div class="row">

@@ -9,11 +9,11 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
 .tabs button.on { background: var(--white); color: var(--teal); box-shadow: var(--shadow); }
 .drop {
   display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
-  padding: 36px 20px; border: 2px dashed #d8d0bd; border-radius: var(--r-lg); background: #fffdf8; cursor: pointer;
+  padding: 36px 20px; border: 2px dashed var(--line-strong); border-radius: var(--r-lg); background: var(--surface); cursor: pointer;
   transition: background .15s, border-color .15s;
   &:hover, &.over { background: var(--mint); border-color: var(--teal); }
   &.busy { cursor: progress; opacity: .8; }
-  &:focus-within { outline: 3px solid var(--sun); outline-offset: 2px; }
+  &:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
   strong { font-size: 17px; }
 }
 .art { max-width: 100%; height: auto; margin-bottom: 8px; }
@@ -48,26 +48,26 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
   min-width: 56px; min-height: 48px; padding: 6px 14px; border-radius: 14px; border: 1px solid var(--line);
   background: var(--white); font: 700 17px var(--font); color: var(--ink); cursor: pointer; display: grid; place-items: center; line-height: 1.1;
   small { font-size: 10.5px; font-weight: 700; color: var(--teal); }
-  &.on { background: var(--teal); border-color: var(--teal); color: #fff; small { color: var(--sun); } }
+  &.on { background: var(--accent); border-color: var(--accent); color: #fff; small { color: #d6e7dd; } }
 }
 
 .path { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 0; position: relative; }
 .node { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; position: relative; padding-bottom: 18px; }
 .node:not(:last-child)::before {
   content: ""; position: absolute; left: 25px; top: 52px; bottom: 0; width: 0;
-  border-left: 4px dotted #c9d6d2;
+  border-left: 2px dotted var(--line-strong);
 }
 .dot {
   width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--teal); color: #fff; font: 700 20px var(--font); box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .18);
-  &.alt { background: #1d8577; }
-  &.star { background: var(--sun); color: #8a5a00; }
+  background: var(--surface); color: var(--accent); font: 700 20px var(--font); border: 2px solid var(--accent);
+  &.alt { color: var(--title); border-color: var(--accent-tint-2); background: var(--accent-tint); }
+  &.star { color: #b8891f; border-color: var(--line-strong); }
 }
 .node-body { display: grid; gap: 8px; padding-top: 4px; min-width: 0; }
 .node-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
 .quote { font-size: 14px; color: var(--ink-2); font-style: italic; }
 .words { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.word { padding: 3px 10px; border-radius: 999px; background: var(--sun-soft); color: #5a4300; font-weight: 700; font-size: 13px; }
+.word { padding: 3px 10px; border-radius: 999px; background: #eef1ee; color: var(--ink-2); font-weight: 700; font-size: 13px; }
 .qs { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 12px; font-size: 14px; }
 .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .opt { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px 4px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--white); }
@@ -76,7 +76,7 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
 
 .next { list-style: none; margin: 12px 0 18px; padding: 0; display: grid; gap: 12px; font-size: 14px; }
 .next li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
-.next b { width: 28px; height: 28px; border-radius: 50%; background: var(--sun); color: #3d2e00; display: grid; place-items: center; }
+.next b { width: 28px; height: 28px; border-radius: 50%; background: var(--accent-tint); border: 1px solid var(--accent-tint-2); color: var(--title); display: grid; place-items: center; }
 .full { width: 100%; margin-top: 8px; }
 
 @media (max-width: 1100px) {

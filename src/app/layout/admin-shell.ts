@@ -29,9 +29,9 @@ const NAV: NavItem[] = [
   selector: 'pl-admin-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo],
   template: `
-    <div class="layout" [class.open]="menuOpen()">
+    <div class="layout ws" [class.open]="menuOpen()">
       <aside class="side">
-        <a routerLink="/admin" class="brand" (click)="menuOpen.set(false)"><pl-logo [light]="true" /></a>
+        <a routerLink="/admin" class="brand" (click)="menuOpen.set(false)"><pl-logo /></a>
         <p class="area">Administrator</p>
         <nav aria-label="Administrator">
           @for (item of nav; track item.link) {
@@ -59,55 +59,83 @@ const NAV: NavItem[] = [
           <button type="button" class="burger" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-label="Menu">
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
           </button>
-          <span class="scope">All centers</span>
-          <span class="preview">
+          <span class="where">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-5h6v5M9 11h.01M15 11h.01" /></svg>
+            All centers
+          </span>
+          <span class="status" [class.local]="!apiMode">
             <span class="dot"></span>
-            {{ apiMode ? 'Saved on the server' : 'Pilot preview · saved in this browser · sample data' }}
+            <span class="status-text">{{ apiMode ? 'Saved on the server' : 'Pilot preview · saved in this browser · sample data' }}</span>
           </span>
         </header>
         <main class="content"><router-outlet /></main>
+        <footer class="foot">
+          <span>Pocket Lessons · Administrator</span>
+          <span>AHA Learning Center × UpUp Technologies</span>
+        </footer>
       </div>
     </div>
   `,
   styles: `
-    .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+    /* The white sidebar column runs the full height of long pages. */
+    .layout {
+      display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh;
+      background: linear-gradient(90deg, var(--surface) 263px, var(--line) 263px 264px, var(--ground) 264px);
+    }
     .side {
-      position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 6px; overflow-y: auto;
-      background: linear-gradient(180deg, #163C3B, #10302F 60%, #0B2524); color: #D2E6DF; padding: 22px 16px;
+      position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 2px; overflow-y: auto;
+      background: var(--surface); border-right: 1px solid var(--line); padding: 18px 14px 14px;
     }
-    .brand { text-decoration: none; padding: 4px 10px 8px; }
-    .area { margin: 0 10px 14px; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--sun); }
-    nav { display: grid; gap: 3px; }
+    .brand { text-decoration: none; padding: 2px 8px 10px; }
+    .area {
+      align-self: flex-start; margin: 0 8px 16px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; color: var(--title); background: var(--accent-tint); border: 1px solid var(--accent-tint-2);
+    }
+    nav { display: grid; gap: 2px; }
     .item {
-      position: relative; display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px;
-      border-radius: 12px; color: #D2E6DF; text-decoration: none; font-weight: 700; font-size: 14.5px;
+      display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px;
+      border-radius: 10px; color: var(--ink-2); text-decoration: none; font-weight: 700; font-size: 14.5px;
+      transition: background .15s, color .15s;
     }
-    .item:hover { background: rgba(255, 249, 237, .08); color: #FFF9ED; }
-    .item.on { background: rgba(255, 249, 237, .12); color: #FFF9ED; }
-    .item.on::before { content: ""; position: absolute; left: -16px; top: 11px; bottom: 11px; width: 4px; border-radius: 0 4px 4px 0; background: var(--sun); }
-    .badge { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--sun); color: #3d2e00; font-size: 12px; display: inline-grid; place-items: center; }
-    .me { margin-top: auto; display: flex; gap: 10px; align-items: center; padding: 12px 10px; border-top: 1px solid rgba(210, 230, 223, .15); }
+    .item svg { color: var(--icon); flex: none; }
+    .item:hover { background: var(--surface-2); color: var(--ink); }
+    .item.on { background: var(--accent-tint); color: var(--title); }
+    .item.on svg { color: var(--accent); }
+    .badge { margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 12px; display: inline-grid; place-items: center; }
+    .me { margin-top: auto; display: flex; gap: 10px; align-items: center; padding: 14px 8px 12px; border-top: 1px solid var(--line); }
     .me div { display: grid; min-width: 0; }
-    .me strong { color: #FFF9ED; }
-    .me span:not(.avatar) { font-size: 12.5px; color: #9FC3B9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .avatar { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--sun); color: #3d2e00; font-weight: 700; flex: none; }
-    .out { background: none; border: 1px solid rgba(210, 230, 223, .25); color: #D2E6DF; border-radius: 999px; min-height: 38px; font: 700 13px var(--font); cursor: pointer; margin: 0 6px; }
-    .out:hover { background: rgba(255, 249, 237, .08); }
-    .main { min-width: 0; display: flex; flex-direction: column; }
-    .top { display: flex; align-items: center; gap: 12px; padding: 14px clamp(16px, 4vw, 40px); }
-    .burger { display: none; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 6px; }
-    .scope { font-size: 12.5px; font-weight: 700; color: var(--teal-dark); background: var(--mint); padding: 6px 12px; border-radius: 999px; }
-    .preview { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--white); border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sun); }
-    .content { padding: 8px clamp(16px, 4vw, 40px) 48px; max-width: 1320px; width: 100%; }
-    @media (max-width: 960px) {
-      .layout { grid-template-columns: 1fr; }
-      .side { position: fixed; z-index: 50; width: 280px; left: 0; transform: translateX(-100%); transition: transform .2s; }
-      .open .side { transform: none; box-shadow: 0 0 0 100vmax rgba(6, 35, 31, .45); }
-      .burger { display: inline-flex; }
-      .scope { display: none; }
+    .me strong { color: var(--ink); font-size: 14px; }
+    .me span:not(.avatar) { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); border: 1px solid var(--accent-tint-2); color: var(--title); font-weight: 700; font-size: 13px; flex: none; }
+    .out { background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2); border-radius: 10px; min-height: 36px; font: 700 13px var(--font); cursor: pointer; margin: 0 4px; transition: border-color .15s, color .15s; }
+    .out:hover { border-color: var(--accent); color: var(--accent); }
+    .main { min-width: 0; display: flex; flex-direction: column; background: radial-gradient(1100px 380px at 100% 0%, rgba(20, 107, 96, .05), transparent 70%), var(--ground); }
+    .top {
+      position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; min-height: 60px;
+      padding: 0 clamp(16px, 4vw, 40px); background: var(--surface); border-bottom: 1px solid var(--line);
     }
-    @media print { .side, .top { display: none; } .layout { display: block; } .content { padding: 0; } }
+    .burger { display: none; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 6px; border-radius: 8px; }
+    .where { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; color: var(--ink); }
+    .where svg { color: var(--icon); flex: none; }
+    .status { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #2e9e6b; box-shadow: 0 0 0 3px rgba(46, 158, 107, .15); }
+    .local .dot { background: #8a958f; box-shadow: none; }
+    .content { flex: 1; padding: 28px clamp(16px, 4vw, 40px) 48px; max-width: 1320px; width: 100%; }
+    .foot {
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 14px clamp(16px, 4vw, 40px);
+      background: var(--surface); border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted);
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; background: var(--ground); }
+      .side { position: fixed; z-index: 50; width: 280px; left: 0; transform: translateX(-100%); transition: transform .2s; }
+      .open .side { transform: none; box-shadow: 0 0 0 100vmax rgba(20, 27, 24, .32); }
+      .burger { display: inline-flex; }
+    }
+    @media (max-width: 560px) {
+      .status { padding: 7px; }
+      .status-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    }
+    @media print { .side, .top, .foot { display: none; } .layout { display: block; } .content { padding: 0; } .main { background: none; } }
   `,
 })
 export class AdminShell {

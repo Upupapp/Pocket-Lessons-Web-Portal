@@ -12,7 +12,6 @@ import { CopyButton } from '../../shared/copy-button';
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Centers</p>
         <h1>Centers and invitation codes</h1>
         <p>Teachers join a center with its invitation code. Turn a code off to allow setup links only.</p>
       </div>
@@ -73,7 +72,7 @@ import { CopyButton } from '../../shared/copy-button';
     .counts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 16px; font-size: 14px; }
     .counts a { text-decoration: none; color: var(--muted); }
     .counts strong { color: var(--ink); }
-    .invite { background: var(--mint); border-radius: var(--r-md); padding: 14px; display: grid; gap: 6px; }
+    .invite { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px; display: grid; gap: 6px; }
     .invite.off { background: var(--cream-2); }
     .invite-head { display: flex; align-items: center; justify-content: space-between; }
     .label { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--teal-dark); }

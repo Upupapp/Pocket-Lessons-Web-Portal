@@ -14,7 +14,6 @@ type Filter = 'all' | 'draft' | 'published';
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Create</p>
         <h1>Lessons</h1>
         <p>Short voice lessons for each reading level. Drafts save as you work.</p>
       </div>
@@ -40,12 +39,11 @@ type Filter = 'all' | 'draft' | 'published';
           <section class="card unit" [class.fresh]="u.unit.id === unit()">
             <div class="unit-head">
               <div>
-                <p class="eyebrow">{{ u.unit.level }} · {{ u.unit.language }}@if (u.unit.sourceLabel) { · {{ u.unit.sourceLabel }} }</p>
                 <h3>{{ u.unit.title }}</h3>
                 <p class="small muted">
-                  @if (u.unit.author) { by {{ u.unit.author }} · }
-                  {{ u.lessons.length }} circles · {{ u.recorded }} of {{ u.pages }} pages recorded · {{ u.published }} published
+                  {{ u.unit.level }} · {{ u.unit.language }}@if (u.unit.sourceLabel) { · {{ u.unit.sourceLabel }} }@if (u.unit.author) { · by {{ u.unit.author }} }
                 </p>
+                <p class="small muted">{{ u.lessons.length }} circles · {{ u.recorded }} of {{ u.pages }} pages recorded · {{ u.published }} published</p>
               </div>
               <button type="button" class="btn btn-danger btn-sm" (click)="removeUnit(u.unit)">Delete unit</button>
             </div>
@@ -103,7 +101,7 @@ type Filter = 'all' | 'draft' | 'published';
             <h2>{{ l.title || 'Untitled lesson' }}</h2>
             <p class="obj">{{ l.objective || 'No learning goal yet' }}</p>
             <div class="meta">
-              <span class="pill pill-sun">{{ l.level }}</span>
+              <span class="lvl" [attr.data-level]="l.level">{{ l.level }}</span>
               <span class="small muted">{{ l.pages.length }} pages · {{ recorded(l.pages) }} recorded · {{ l.activities.length }} activities</span>
             </div>
             <div class="size">
@@ -127,19 +125,23 @@ type Filter = 'all' | 'draft' | 'published';
     .section-title { font-family: var(--serif); font-size: 20px; margin: 4px 0 12px; }
     .units { display: grid; gap: 16px; margin-bottom: 28px; }
     .unit { display: grid; gap: 12px; }
-    .unit.fresh { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(20, 107, 96, .15), var(--shadow); }
+    .unit.fresh { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(20, 107, 96, .12), var(--shadow); }
     .unit-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-    .unit h3 { font-family: var(--serif); font-size: 24px; margin: 2px 0; }
-    .trail { list-style: none; margin: 6px 0 0; padding: 22px 4px 6px; display: flex; gap: 6px; overflow-x: auto; background: linear-gradient(180deg, #f4fbf2, transparent); border-radius: var(--r-md); }
+    .unit h3 { font-family: var(--serif); font-size: 23px; margin: 0 0 4px; color: var(--title); }
+    .trail { list-style: none; margin: 6px 0 0; padding: 22px 4px 6px; display: flex; gap: 6px; overflow-x: auto; border-radius: var(--r-md); }
     .trail li { flex: 1 0 108px; display: flex; justify-content: center; transform: translateY(var(--lift, 0)); position: relative; }
-    .trail li:not(:last-child)::after { content: ""; position: absolute; top: 30px; left: calc(50% + 36px); right: calc(-50% + 36px); border-top: 4px dotted #c9d6d2; }
+    .trail li:not(:last-child)::after { content: ""; position: absolute; top: 29px; left: calc(50% + 34px); right: calc(-50% + 34px); border-top: 2px dotted var(--line-strong); }
     .stop { display: grid; justify-items: center; gap: 4px; text-decoration: none; color: inherit; text-align: center; }
-    .disc { width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; font: 700 22px var(--font); background: #e8e1d1; color: var(--muted); box-shadow: inset 0 -6px 0 rgba(0,0,0,.12); transition: transform .12s; }
-    .stop:hover .disc { transform: translateY(-3px); }
-    .stop.ready .disc { background: #1d8577; color: #fff; }
-    .stop.live .disc { background: var(--teal); color: #fff; }
-    .stop.cp .disc { background: var(--sun-soft); color: #c99b2e; }
-    .stop.cp.ready .disc, .stop.cp.live .disc { background: var(--sun); color: #8a5a00; }
+    .disc {
+      width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font: 700 20px var(--font);
+      background: var(--surface); color: var(--muted); border: 2px solid var(--line-strong); transition: transform .15s, border-color .15s;
+    }
+    .stop:hover .disc { transform: translateY(-2px); border-color: var(--accent); }
+    .stop.ready .disc { border-color: var(--accent); color: var(--accent); }
+    .stop.live .disc { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .stop.cp .disc { color: #b8891f; }
+    .stop.cp.live .disc { color: #f6cc59; }
+
     .cap { font-weight: 700; font-size: 14px; }
     .state { font-size: 12px; color: var(--muted); }
     .meter.wide { height: 8px; }
@@ -148,12 +150,12 @@ type Filter = 'all' | 'draft' | 'published';
     .seg { display: inline-flex; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
     .seg button { border: 0; background: none; border-radius: 999px; padding: 8px 14px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
     .seg button span { margin-left: 4px; opacity: .7; }
-    .seg button.on { background: var(--teal); color: #fff; }
+    .seg button.on { background: var(--accent-tint); color: var(--title); }
     .right { display: flex; gap: 10px; }
     .right .select { width: 150px; } .right .input { width: 220px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .lesson { text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 10px; transition: transform .12s, box-shadow .12s; }
-    .lesson:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -16px rgba(22, 60, 59, .45); }
+    .lesson { text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 10px; transition: border-color .15s, box-shadow .15s; }
+    .lesson:hover { border-color: var(--accent-tint-2); box-shadow: var(--shadow-raise); }
     .top { display: flex; justify-content: space-between; align-items: center; }
     h2 { font-family: var(--serif); font-size: 22px; }
     .obj { color: var(--ink-2); font-size: 14px; flex: 1; }

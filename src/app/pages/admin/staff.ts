@@ -13,7 +13,6 @@ import { Qr } from '../../shared/qr';
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Teachers and staff</p>
         <h1>Teachers and staff</h1>
         <p>Add a teacher and send them a one-time setup link, or let them join with their center's invitation code.</p>
       </div>

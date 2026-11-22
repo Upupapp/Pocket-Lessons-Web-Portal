@@ -1,7 +1,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { ActivationCodeInfo, AdminCenter, AdminClass, AdminFamily, AVATARS, avatarEmoji, fmtDate } from '../../core/admin-models';
+import { ActivationCodeInfo, AdminCenter, AdminClass, AdminFamily, AVATARS, fmtDate } from '../../core/admin-models';
+import { KidAvatar, avatarLabel } from '../../shared/kid-avatar';
 import { AdminService, adminError } from '../../core/admin.service';
 import { CopyButton } from '../../shared/copy-button';
 
@@ -15,11 +16,10 @@ interface ChildRow {
 /** A-10/A-11/A-12 Parents and families: add a parent with children, print the activation code, new code, reset PIN. */
 @Component({
   selector: 'pl-admin-families',
-  imports: [FormsModule, CopyButton],
+  imports: [FormsModule, CopyButton, KidAvatar],
   template: `
     <div class="page-head no-print">
       <div>
-        <p class="eyebrow">Parents and families</p>
         <h1>Parents and families</h1>
         <p>One account per family. The parent links the phone once with a 6-digit code, then keeps their own 3-digit PIN.</p>
       </div>
@@ -30,7 +30,7 @@ interface ChildRow {
 
     @if (code(); as c) {
       <section class="card adm-result adm-gap code-card" aria-live="polite">
-        <p class="eyebrow">Activation code for the {{ codeFamily() }} family</p>
+        <p class="code-for">Activation code for the {{ codeFamily() }} family</p>
         <p class="adm-code">{{ c.code.slice(0, 3) }} {{ c.code.slice(3) }}</p>
         <p class="small">The parent opens Pocket Lessons, chooses <strong>Parent and child</strong> and types this code once. It works one time and is valid until <strong>{{ fmt(c.expiresAt) }}</strong>.</p>
         <p class="adm-print-only small">AHA Learning Center × UpUp Technologies · Pocket Lessons · Keep this paper safe until the phone is linked.</p>
@@ -73,7 +73,7 @@ interface ChildRow {
               <label class="field"><span>Avatar</span>
                 <select class="select" [name]="'ka' + i" [(ngModel)]="k.avatar">
                   <option [ngValue]="null">The child picks on the phone</option>
-                  @for (a of avatars; track a) { <option [ngValue]="a">{{ emoji(a) }} {{ a }}</option> }
+                  @for (a of avatars; track a) { <option [ngValue]="a">{{ label(a) }}</option> }
                 </select>
               </label>
               @if (form.children.length > 1) {
@@ -111,7 +111,7 @@ interface ChildRow {
                   <div class="chips">
                     @for (k of f.children; track k.id) {
                       <span class="adm-chip" [title]="k.addedBy === 'parent' ? 'Added by the parent on the phone' : ''">
-                        <span class="adm-avatar" aria-hidden="true">{{ emoji(k.avatar) }}</span>{{ k.name }}
+                        <pl-kid class="adm-avatar" [avatar]="k.avatar" [name]="k.name" [size]="20" aria-hidden="true" />{{ k.name }}
                         @if (k.addedBy === 'parent') { <span class="tag">by parent</span> }
                       </span>
                     }
@@ -147,6 +147,7 @@ interface ChildRow {
   `,
   styles: `
     .code-card { text-align: center; display: grid; gap: 10px; justify-items: center; }
+    .code-for { font-family: var(--serif); font-weight: 700; font-size: 18px; color: var(--title); }
     .row-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
     .kids-title { font-size: 15px; margin: 18px 0 8px; }
     .kids { display: grid; gap: 10px; margin-bottom: 10px; }
@@ -162,7 +163,7 @@ interface ChildRow {
 export class AdminFamiliesPage {
   private readonly admin = inject(AdminService);
   readonly avatars = AVATARS;
-  readonly emoji = avatarEmoji;
+  readonly label = avatarLabel;
   readonly fmt = fmtDate;
   readonly centers = signal<AdminCenter[]>([]);
   readonly classes = signal<AdminClass[]>([]);

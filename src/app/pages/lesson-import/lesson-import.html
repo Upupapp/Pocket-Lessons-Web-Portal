@@ -1,7 +1,6 @@
 <a routerLink="/app/lessons" class="back">← All lessons</a>
 <div class="page-head">
   <div>
-    <p class="eyebrow">Create · Import</p>
     <h1>Turn a lesson file into a learning path</h1>
     <p>Upload a reading lesson with a story, questions and an answer key. The portal splits the story into short lessons and turns the questions into a checkpoint.</p>
   </div>
@@ -76,7 +75,7 @@
           <div class="found-head">
             <pl-coach mood="cheer" [size]="76" />
             <div>
-              <p class="eyebrow">Found in {{ fileName() }}</p>
+              <p class="small muted">Found in {{ fileName() }}</p>
               <label class="sr-only" for="unit-title">Unit title</label>
               <input id="unit-title" class="title" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="Story title" maxlength="60" />
               <p class="muted">{{ p.author ? 'by ' + p.author : 'No author found' }}@if (p.label) { · {{ p.label }} }</p>

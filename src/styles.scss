@@ -173,3 +173,120 @@ a.adm-stat:hover { border-color: var(--teal); }
   .adm-print-only { display: block !important; }
 }
 .adm-print-only { display: none; }
+
+html:has(.layout.ws),
+html:has(.layout.ws) body { background: #f6f7f4; }
+
+// ---------------------------------------------------------------------------
+// Workspace theme: the teacher and administrator areas (class "ws" on their layout).
+// White panels, near-black text, and green only where it carries meaning: icons, links,
+// the main action, titles and charts. Sign-in, welcome, setup and the intro keep the
+// cream-and-teal look above.
+// ---------------------------------------------------------------------------
+.ws {
+  // Surfaces
+  --ground: #f6f7f4;        // main panel: a soft, slightly green-grey white
+  --surface: #ffffff;       // sidebar, header, footer, cards
+  --surface-2: #f9faf8;     // row hover, insets
+  --line: #e3e7e2;          // hairlines
+  --line-strong: #c9d1cb;   // inputs and dividers that must show
+  // Text
+  --ink: #141b18;
+  --ink-2: #2c3833;
+  --muted: #5d6964;
+  --faint: #6b7570;         // placeholders and chart axes (4.7:1 on white)
+  // Greens
+  --title: #0e3f36;         // page and card titles
+  --accent: #146b60;        // links, the main action, the active page
+  --accent-strong: #0f4d43; // hover
+  --accent-tint: #edf5f0;   // selected and active backgrounds
+  --accent-tint-2: #d6e7dd; // edges of tinted things
+  --icon: #3f7a6b;          // resting icons
+  // Status (always shown with words)
+  --good: #1e6b45;
+  --good-bg: #e8f3ec;
+  --warn: #7a5200;
+  --warn-bg: #fbf3dc;
+  --bad: #a3352b;
+  --bad-bg: #fbebe8;
+  // The shared building blocks read these older names.
+  --cream: var(--ground);
+  --cream-2: #eff2ef;
+  --mint: var(--accent-tint);
+  --mint-2: var(--accent-tint-2);
+  --teal: var(--accent);
+  --teal-dark: var(--accent-strong);
+  --sun-soft: var(--warn-bg);
+  --amber: var(--warn);
+  --amber-bg: var(--warn-bg);
+  --red: var(--bad);
+  --red-bg: var(--bad-bg);
+  --green: var(--good);
+  --green-bg: var(--good-bg);
+  --r-md: 10px;
+  --r-lg: 14px;
+  --shadow: 0 1px 2px rgba(20, 27, 24, 0.04);
+  --shadow-raise: 0 1px 2px rgba(20, 27, 24, 0.05), 0 12px 28px -16px rgba(20, 27, 24, 0.22);
+
+  color: var(--ink);
+  background: var(--ground);
+  scrollbar-color: #c3ccc6 transparent;
+
+  ::selection { background: #cfe4d9; color: var(--ink); }
+  :focus-visible { outline-color: var(--accent); }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  h1, h2 { color: var(--title); }
+  h1 { letter-spacing: -0.012em; }
+
+  .card { border-color: var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow); }
+
+  .btn { border-radius: 10px; }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(15, 77, 67, 0.28); }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-strong); }
+  .btn-sun { background: var(--accent-tint); color: var(--title); border-color: var(--accent-tint-2); }
+  .btn-sun:hover:not(:disabled) { background: #e1eee6; border-color: #bcd6c7; }
+  .btn-ghost { background: var(--surface); color: var(--ink-2); border-color: var(--line-strong); }
+  .btn-ghost:hover:not(:disabled) { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+  .btn-danger { border-color: #ecc8c1; }
+
+  .input, .select, .textarea {
+    border-color: var(--line-strong); border-radius: 10px; color: var(--ink);
+    &::placeholder { color: var(--faint); }
+    &:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(20, 107, 96, 0.14); }
+  }
+
+  .pill-teal { background: var(--good-bg); color: var(--good); }
+  .pill-sun { background: var(--warn-bg); color: var(--warn); }
+  .pill-red { background: var(--bad-bg); color: var(--bad); }
+  .pill-grey { background: #eef1ee; color: var(--muted); }
+
+  .table th { color: var(--muted); font-size: 12px; letter-spacing: 0.02em; border-bottom-color: var(--line); }
+  .table td { border-bottom-color: var(--line); font-variant-numeric: tabular-nums; }
+  .table tbody tr { transition: background 0.12s; }
+  .table tbody tr:hover { background: var(--surface-2); }
+
+  .page-head h1 { color: var(--title); font-size: 28px; }
+  .page-head p { color: var(--muted); }
+  .empty { border-color: var(--line-strong); background: var(--surface); color: var(--muted); }
+  .eyebrow { color: var(--muted); letter-spacing: 0.06em; }
+
+  .adm-stat { border-radius: var(--r-lg); box-shadow: var(--shadow); strong { font: 600 28px/1.15 var(--font); color: var(--ink); } }
+  a.adm-stat:hover { border-color: var(--accent-tint-2); box-shadow: var(--shadow-raise); }
+  .adm-callout { background: var(--surface); border: 1px solid var(--accent-tint-2); box-shadow: var(--shadow); }
+  .adm-info { background: var(--surface-2); border-color: var(--line); color: var(--ink-2); }
+  .adm-result { border: 1px solid var(--accent-tint-2); background: var(--surface); box-shadow: var(--shadow-raise); }
+  .adm-link { border-color: var(--line-strong); }
+  .adm-chip { background: #eef1ee; color: var(--ink-2); }
+  .adm-msg { background: var(--bad-bg); color: var(--bad); }
+  .adm-code { color: var(--ink); }
+  .adm-avatar { display: inline-flex; vertical-align: middle; }
+
+  // A reading level: a dot in that level's green (the chart ramp, Beginner light to Story dark), then the name.
+  .lvl { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+  .lvl::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--lvl, #9aa7a1); }
+  .lvl[data-level="Beginner"] { --lvl: #86bfa9; }
+  .lvl[data-level="Letter"] { --lvl: #5da58c; }
+  .lvl[data-level="Word"] { --lvl: #3b8a70; }
+  .lvl[data-level="Paragraph"] { --lvl: #216f57; }
+  .lvl[data-level="Story"] { --lvl: #0f5241; }
+}

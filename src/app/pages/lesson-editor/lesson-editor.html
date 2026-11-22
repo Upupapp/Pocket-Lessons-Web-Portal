@@ -9,9 +9,8 @@
     @if (unit(); as u) {
       <nav class="unit-bar" aria-label="Lessons in this unit">
         <div class="unit-name">
-          <span class="eyebrow">Unit</span>
           <strong>{{ u.title }}</strong>
-          <span class="small muted">{{ isCheckpoint() ? 'Checkpoint' : 'Part ' + (position() + 1) }} of {{ path().length - 1 }} + checkpoint</span>
+          <span class="small muted">Unit · {{ isCheckpoint() ? 'Checkpoint' : 'Part ' + (position() + 1) }} of {{ path().length - 1 }} + checkpoint</span>
         </div>
         <ol class="mini-path">
           @for (x of path(); track x.id; let i = $index) {

@@ -12,7 +12,6 @@ import { LEVELS, uid } from '../../core/models';
   template: `
     <div class="page-head">
       <div>
-        <p class="eyebrow">Classes</p>
         <h1>Classes</h1>
         <p>Groups of children at a center, with their program, level, schedule and teacher.</p>
       </div>
@@ -65,7 +64,7 @@ import { LEVELS, uid } from '../../core/models';
             @for (c of rows(); track c.id) {
               <tr>
                 <td><strong>{{ c.name }}</strong><span class="adm-sub">{{ c.program }}</span></td>
-                <td><span class="pill pill-sun">{{ c.level }}</span></td>
+                <td><span class="lvl" [attr.data-level]="c.level">{{ c.level }}</span></td>
                 <td class="small">{{ c.schedule || '—' }}</td>
                 <td class="small">{{ c.teacher || 'No teacher yet' }}</td>
                 <td><a [routerLink]="['/admin/students']" [queryParams]="{ center: c.centerId, class: c.id }">{{ c.children }}</a></td>
