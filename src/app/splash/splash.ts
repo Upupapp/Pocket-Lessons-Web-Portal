@@ -1,233 +1,408 @@
-import { Component, DestroyRef, HostListener, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, computed, inject, output, signal, viewChild } from '@angular/core';
+import { API_URL } from '../core/api';
+import { ConnectionWatch } from '../core/connection';
+import { ART_H, ART_W, EXTRA, EXTRA_X, Frame, Geometry, LETTER_COUNT, ORBIT, TOTAL_MS, X0, Y0, easeInCubic, frame, geometry } from './splash-frame';
 
-const DURATION_MS = 4600;
-const STEPS = [
-  { at: 0, text: 'Preparing your classroom…' },
-  { at: 0.3, text: 'Loading your lessons…' },
-  { at: 0.58, text: 'Checking for new reading recordings…' },
-  { at: 0.86, text: 'Ready' },
+/** The web plays the phone's 6 s timeline a little faster (teachers open the portal often). */
+const SPEED = 1 / 0.8;
+const EXIT_MS = 700;
+const LAYERS = 'brand/intro/';
+const LETTER_SRC = Array.from({ length: LETTER_COUNT }, (_, i) => `${LAYERS}letter-${String(i).padStart(2, '0')}.svg`);
+const PRELOAD = [
+  ...['icon-base', 'icon-sun', 'icon-front', 'icon-spark', 'bar', 'tagline'].map((n) => `${LAYERS}${n}.svg`),
+  ...LETTER_SRC,
+  ...ORBIT.map((n) => `icons3d/${n}.webp`),
+  'icons3d/rocket.webp',
 ];
+/** Floating sparkles behind the logo (fixed positions, so every visit looks the same). */
+const CONFETTI = Array.from({ length: 22 }, (_, i) => ({
+  left: (i * 37 + 11) % 100,
+  top: (i * 53 + 7) % 100,
+  size: 3 + (i % 4),
+  color: ['#F6CC59', '#8FD9C8', '#FFF9ED', '#FFB547'][i % 4],
+  delay: -(i * 0.37),
+}));
 
 /**
- * Intro shown once per session before the welcome pages.
- * Story: the teacher's voice lesson travels to the family phone by hotspot, phone to phone, or online.
+ * W-00 Intro shown once per browser session. Same look as the mobile app's intro (logo flips into the glowing
+ * disc, the wordmark bursts out of the pocket, a rocket rides the loading bar). The web twist: it really
+ * connects to the Pocket Lessons server while it plays, and says so when there is no internet.
  */
 @Component({
   selector: 'pl-splash',
   template: `
-    <div class="splash" [class.leaving]="leaving()" role="dialog" aria-label="Pocket Lessons is loading">
-      <div class="glow" aria-hidden="true"></div>
+    <div class="splash" [class.leaving]="leaving()" [style.clip-path]="clip()" role="dialog" aria-modal="true" aria-label="Pocket Lessons is starting">
+      <div class="bg" [style.background]="f().background"></div>
+      <div class="confetti" aria-hidden="true" [style.opacity]="f().confetti">
+        @for (c of confetti; track $index) {
+          <i [style.left.%]="c.left" [style.top.%]="c.top" [style.width.px]="c.size" [style.height.px]="c.size" [style.background]="c.color" [style.animation-delay.s]="c.delay"></i>
+        }
+      </div>
+      <!-- the logo scene moves up when the "no connection" card needs the room -->
+      <div class="scene" [style.transform]="'translateY(' + -lift() + 'px)'">
+      <div class="burst" aria-hidden="true"
+        [style.left.px]="g().cx - g().radius * 1.6" [style.top.px]="g().cy - g().radius * 1.6"
+        [style.width.px]="g().radius * 3.2" [style.height.px]="g().radius * 3.2"
+        [style.opacity]="f().burst.opacity" [style.transform]="f().burst.transform"></div>
 
+      <!-- the web twist: signal rings pulse out of the disc while it talks to the server -->
+      <div class="rings" aria-hidden="true" [class.on]="f().settled" [class.off]="state() === 'offline'" [style.left.px]="g().cx" [style.top.px]="g().cy">
+        <span></span><span></span><span></span>
+      </div>
+
+      @for (o of f().orbit; track o.src) {
+        <img class="orb" [src]="o.src" alt="" [style.width.px]="o.size" [style.height.px]="o.size" [style.transform]="o.transform" [style.opacity]="o.opacity" [class.grey]="state() === 'offline'" />
+      }
+
+      <div class="disc" aria-hidden="true" [style.left.px]="g().cx - 78" [style.top.px]="g().cy - 78" [style.transform]="f().disc.transform" [style.box-shadow]="f().disc.shadow">
+        @if (f().icon.show) {
+          <div class="flip" [style.transform]="f().icon.transform">
+            <div class="art">
+              <img src="brand/intro/icon-base.svg" alt="" />
+              <img class="sun" src="brand/intro/icon-sun.svg" alt="" [style.opacity]="f().icon.sunOpacity" [style.transform]="f().icon.sunTransform" />
+              <img src="brand/intro/icon-front.svg" alt="" />
+              <img class="spark" src="brand/intro/icon-spark.svg" alt="" [style.transform]="f().icon.sparkTransform" />
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="word" role="img" aria-label="Pocket Lessons – Tuloy Ang Aral. Konektado sa Bawat Sentro."
+        [style.left.px]="g().wordLeft" [style.top.px]="g().wordTop" [style.width.px]="g().wordW" [style.height.px]="g().wordH">
+        @if (f().wordShow) {
+          @for (l of f().letters; track $index) {
+            <div class="layer" [style.transform]="l.transform" [style.transform-origin]="l.origin" [style.opacity]="l.opacity" [style.filter]="l.filter">
+              <img [src]="letterSrc[$index]" alt="" [style.left.px]="art().left" [style.top.px]="art().top" [style.width.px]="art().w" [style.height.px]="art().h" />
+            </div>
+          }
+          <div class="layer" [style.transform]="f().bar" [style.transform-origin]="barOrigin()" [style.filter]="f().barFilter">
+            <img src="brand/intro/bar.svg" alt="" [style.left.px]="art().left" [style.top.px]="art().top" [style.width.px]="art().w" [style.height.px]="art().h" />
+          </div>
+          <div class="layer" [style.clip-path]="f().tagClip" [style.filter]="f().tagFilter">
+            <img src="brand/intro/tagline.svg" alt="" [style.left.px]="art().left" [style.top.px]="art().top" [style.width.px]="art().w" [style.height.px]="art().h" />
+          </div>
+          <svg class="layer extra" [attr.viewBox]="viewBox()" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="pl-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE58F" /><stop offset="1" stop-color="#F6CC59" /></linearGradient>
+            </defs>
+            <text [attr.x]="extraX" y="143" font-family="Atkinson Hyperlegible, Segoe UI, sans-serif" font-weight="700" font-size="25" letter-spacing="0.6" fill="url(#pl-gold)">{{ f().extra }}</text>
+          </svg>
+          @if (f().caret.show) {
+            <i class="caret" [style.left.px]="f().caret.left" [style.top.px]="(124 - y0) * g().u" [style.width.px]="3 * g().u" [style.height.px]="26 * g().u"></i>
+          }
+        }
+      </div>
+      </div>
+
+      <p class="pill" [attr.data-state]="state()">
+        <span class="dot" aria-hidden="true"></span>
+        @if (state() !== 'preview') {
+          <span class="signal" aria-hidden="true"><i></i><i></i><i></i></span>
+        }
+        {{ pillText() }}
+      </p>
       <button type="button" class="skip" (click)="finish()">Skip intro</button>
 
-      <svg class="scene" viewBox="0 0 760 280" aria-hidden="true">
-        <defs>
-          <radialGradient id="pk" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#FFE8A3" />
-            <stop offset="55%" stop-color="#F6CC59" />
-            <stop offset="100%" stop-color="#F6CC59" stop-opacity="0" />
-          </radialGradient>
-          <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#1B7A6D" />
-            <stop offset="100%" stop-color="#0F544B" />
-          </linearGradient>
-          <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="6" />
-          </filter>
-        </defs>
+      @if (state() !== 'offline') {
+        <div class="loader" aria-hidden="true" [style.width.px]="g().barW" [style.opacity]="f().loaderOpacity">
+          <div class="track"></div>
+          <div class="fill" [style.width.px]="fillW()"></div>
+          <img class="rocket" src="icons3d/rocket.webp" alt="" [style.left.px]="g().barW * bar() - 20" [style.top.px]="rocketTop()" />
+          <span class="globe" [attr.data-state]="state()">
+            <img src="icons3d/globe.webp" alt="" />
+            @if (state() === 'online') { <b class="badge ok">✓</b> }
+          </span>
+        </div>
+        <p class="status" role="status" aria-live="polite" [style.opacity]="f().statusOpacity">{{ status() }}</p>
+      } @else {
+        <div class="offline" role="alert" #card>
+          <img src="icons3d/globe.webp" alt="" class="grey" />
+          <div>
+            <h2>{{ watch.problem() === 'internet' ? 'No internet connection' : 'Cannot reach the Pocket Lessons server' }}</h2>
+            <p>
+              {{ watch.problem() === 'internet' ? 'The portal needs internet to save your work.' : 'The internet works, but the server is not answering right now.' }}
+              Phones keep teaching offline. We will keep trying.
+            </p>
+            <div class="actions">
+              <button type="button" class="btn-sun" (click)="watch.retry()">Try again</button>
+              <button type="button" class="btn-line" (click)="finish()">Continue anyway</button>
+            </div>
+          </div>
+        </div>
+      }
 
-        <!-- Routes: hotspot (top), phone to phone (middle), online (bottom) -->
-        <g fill="none" stroke="#5FC7B5" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="1 9">
-          <path id="r1" class="route" d="M196 140 C 320 40, 450 40, 574 140" />
-          <path id="r2" class="route d2" d="M196 140 L 574 140" />
-          <path id="r3" class="route d3" d="M196 140 C 320 240, 450 240, 574 140" />
-        </g>
-
-        <g class="labels" font-family="Atkinson Hyperlegible, system-ui, sans-serif" font-size="13" font-weight="700">
-          <g class="tag t1" transform="translate(385 66)">
-            <rect x="-44" y="-14" width="88" height="28" rx="14" />
-            <text text-anchor="middle" dy="4.5">Hotspot</text>
-          </g>
-          <g class="tag t2" transform="translate(385 140)">
-            <rect x="-62" y="-14" width="124" height="28" rx="14" />
-            <text text-anchor="middle" dy="4.5">Phone to phone</text>
-          </g>
-          <g class="tag t3" transform="translate(385 214)">
-            <rect x="-40" y="-14" width="80" height="28" rx="14" />
-            <text text-anchor="middle" dy="4.5">Online</text>
-          </g>
-        </g>
-
-        <!-- Lesson packs travelling to the phone -->
-        <g class="packets">
-          <g><circle r="15" fill="url(#pk)" /><circle r="5" fill="#FFF3C4" />
-            <animateMotion dur="1.7s" begin="0.9s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.3 1"><mpath href="#r1" /></animateMotion></g>
-          <g><circle r="15" fill="url(#pk)" /><circle r="5" fill="#FFF3C4" />
-            <animateMotion dur="1.5s" begin="1.25s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.3 1"><mpath href="#r2" /></animateMotion></g>
-          <g><circle r="15" fill="url(#pk)" /><circle r="5" fill="#FFF3C4" />
-            <animateMotion dur="1.9s" begin="1.55s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="spline" keySplines="0.45 0 0.3 1"><mpath href="#r3" /></animateMotion></g>
-        </g>
-
-        <!-- Teacher's voice lesson -->
-        <g transform="translate(130 140)"><g class="lesson">
-          <rect x="-74" y="-74" width="148" height="148" rx="30" fill="#0F4A44" />
-          <rect x="-44" y="-56" width="88" height="112" rx="14" fill="#FFF9ED" />
-          <rect x="18" y="-56" width="26" height="18" rx="6" fill="#F6CC59" />
-          <rect x="-30" y="-30" width="34" height="7" rx="3.5" fill="#146B60" />
-          <rect x="-30" y="-14" width="52" height="7" rx="3.5" fill="#146B60" opacity=".55" />
-          <!-- voice waveform -->
-          <g class="wave" fill="#146B60">
-            <rect x="-30" y="10" width="6" height="24" rx="3" />
-            <rect x="-20" y="10" width="6" height="24" rx="3" />
-            <rect x="-10" y="10" width="6" height="24" rx="3" />
-            <rect x="0" y="10" width="6" height="24" rx="3" />
-            <rect x="10" y="10" width="6" height="24" rx="3" />
-            <rect x="20" y="10" width="6" height="24" rx="3" />
-          </g>
-          <!-- microphone badge -->
-          <g transform="translate(44 50)">
-            <circle r="20" fill="#F6CC59" />
-            <rect x="-5.5" y="-11" width="11" height="16" rx="5.5" fill="#163C3B" />
-            <path d="M-9 1 a9 9 0 0 0 18 0 M0 10 v5" stroke="#163C3B" stroke-width="2.6" fill="none" stroke-linecap="round" />
-          </g>
-        </g></g>
-
-        <!-- Family phone -->
-        <g transform="translate(630 140)"><g class="phone">
-          <rect x="-50" y="-88" width="100" height="176" rx="22" fill="#0B2F2C" stroke="#F3E9D2" stroke-width="5" />
-          <rect x="-40" y="-76" width="80" height="152" rx="14" fill="url(#screen)" />
-          <rect x="-16" y="-82" width="32" height="6" rx="3" fill="#F3E9D2" opacity=".7" />
-          <g class="received">
-            <circle r="30" cy="6" fill="#FFF9ED" opacity=".14" />
-            <rect x="-17" y="-16" width="34" height="44" rx="7" fill="#FFF9ED" />
-            <rect x="5" y="-16" width="12" height="9" rx="3" fill="#F6CC59" />
-            <rect x="-10" y="-4" width="14" height="4" rx="2" fill="#146B60" />
-            <rect x="-10" y="5" width="20" height="4" rx="2" fill="#146B60" opacity=".55" />
-            <rect x="-10" y="14" width="16" height="4" rx="2" fill="#146B60" opacity=".55" />
-            <g transform="translate(20 30)"><g class="check">
-              <circle r="11" fill="#F6CC59" />
-              <path d="M-5 0 l3.5 3.5 l6.5 -7" stroke="#163C3B" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-            </g></g>
-          </g>
-        </g></g>
-      </svg>
-
-      <div class="brand">
-        <h1>Pocket Lessons</h1>
-        <p class="fil">Baong aral, kahit walang signal.</p>
-        <p class="en">A teacher's voice that reaches every pocket, even without signal.</p>
-      </div>
-
-      <div class="progress" role="status" aria-live="polite">
-        <div class="bar"><span [style.width.%]="progress() * 100"></span></div>
-        <p>{{ status() }}</p>
-      </div>
-
-      <p class="credit">AHA Learning Center <span aria-hidden="true">×</span> UpUp Technologies</p>
+      @if (state() !== 'offline') {
+        <p class="credit">AHA Learning Center <span aria-hidden="true">×</span> UpUp Technologies</p>
+      }
     </div>
   `,
   styles: `
     :host { position: fixed; inset: 0; z-index: 1000; }
-    .splash {
-      position: absolute; inset: 0; overflow: hidden;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 32px 20px 64px; gap: 8px; color: #FFF9ED; text-align: center;
-      background: radial-gradient(120% 90% at 50% 0%, #0E4943 0%, #0B3B37 45%, #06231F 100%);
-      transition: opacity .5s ease, transform .5s ease;
+    .splash { position: absolute; inset: 0; overflow: hidden; color: #FFF9ED; background: #0A3F38; }
+    .splash.leaving { pointer-events: none; }
+    .bg { position: absolute; inset: 0; }
+    .scene { position: absolute; inset: 0; pointer-events: none; transition: transform .5s cubic-bezier(.2, .8, .3, 1); }
+
+    .confetti { position: absolute; inset: 0; pointer-events: none; }
+    .confetti i { position: absolute; border-radius: 50%; animation: drift 6s ease-in-out infinite; }
+
+    .burst {
+      position: absolute; border-radius: 50%; pointer-events: none;
+      background: repeating-conic-gradient(from 0deg, #F6CC59 0deg 7deg, transparent 7deg 22.5deg);
+      -webkit-mask: radial-gradient(circle, #000 18%, transparent 68%); mask: radial-gradient(circle, #000 18%, transparent 68%);
     }
-    .splash.leaving { opacity: 0; transform: scale(1.02); pointer-events: none; }
-    .glow {
-      position: absolute; width: 70vmax; height: 70vmax; left: 50%; top: 38%;
-      transform: translate(-50%, -50%); border-radius: 50%;
-      background: radial-gradient(circle, rgba(95, 199, 181, .14), transparent 60%);
-      animation: breathe 4s ease-in-out infinite;
+
+    .rings { position: absolute; width: 0; height: 0; pointer-events: none; }
+    .rings span {
+      position: absolute; left: -78px; top: -78px; width: 156px; height: 156px; border-radius: 50%;
+      border: 3px solid rgba(246, 204, 89, .65); opacity: 0;
     }
+    .rings.on span { animation: ring 2.4s cubic-bezier(.2, .7, .3, 1) infinite; }
+    .rings.on span:nth-child(2) { animation-delay: .8s; }
+    .rings.on span:nth-child(3) { animation-delay: 1.6s; }
+    .rings.off span { animation: none; opacity: .28; border: 2px dashed rgba(210, 230, 223, .6); }
+    .rings.off span:nth-child(1) { transform: scale(1.35); }
+    .rings.off span:nth-child(2) { transform: scale(1.7); }
+    .rings.off span:nth-child(3) { transform: scale(2.05); }
+
+    .orb { position: absolute; left: 0; top: 0; pointer-events: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .25)); transition: filter .4s; }
+    .orb.grey { filter: grayscale(1) drop-shadow(0 6px 10px rgba(0, 0, 0, .25)); }
+
+    .disc { position: absolute; width: 156px; height: 156px; border-radius: 50%; background: #FFF9ED; display: grid; place-items: center; }
+    .flip { width: 96px; height: 108px; position: relative; }
+    .art { position: absolute; left: -8.4px; top: -10.8px; width: 390.6px; height: 123.6px; }
+    .art img { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .art .sun { transform-origin: 56.4px 43.2px; }
+    .art .spark { transform-origin: 88.2px 27.6px; }
+
+    .word { position: absolute; }
+    .layer { position: absolute; inset: 0; overflow: visible; }
+    .layer img { position: absolute; max-width: none; }
+    .extra { width: 100%; height: 100%; overflow: visible; }
+    .caret { position: absolute; background: #E1F1DD; }
+
+    .pill {
+      position: absolute; top: 18px; left: 18px; z-index: 2; display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-radius: 999px; font: 700 13px/1 var(--font); color: #D2E6DF;
+      background: rgba(255, 249, 237, .08); border: 1px solid rgba(210, 230, 223, .25);
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #F6CC59; animation: blink 1.2s ease-in-out infinite; }
+    .signal { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+    .signal i { width: 3px; border-radius: 2px; background: currentColor; opacity: .35; }
+    .signal i:nth-child(1) { height: 5px; } .signal i:nth-child(2) { height: 8px; } .signal i:nth-child(3) { height: 12px; }
+    .pill[data-state='checking'] .signal i { animation: bars 1.2s ease-in-out infinite; }
+    .pill[data-state='checking'] .signal i:nth-child(2) { animation-delay: .2s; }
+    .pill[data-state='checking'] .signal i:nth-child(3) { animation-delay: .4s; }
+    .pill[data-state='online'] { color: #E1F7EC; border-color: rgba(120, 214, 170, .55); }
+    .pill[data-state='online'] .dot { background: #4CD08F; animation: none; box-shadow: 0 0 0 4px rgba(76, 208, 143, .2); }
+    .pill[data-state='online'] .signal i { opacity: 1; }
+    .pill[data-state='offline'] .dot { background: #E07A5F; animation: none; }
+    .pill[data-state='preview'] .dot { background: #8CC7E8; animation: none; }
+
     .skip {
       position: absolute; top: 18px; right: 18px; z-index: 2;
       background: rgba(255, 249, 237, .08); color: #D2E6DF; border: 1px solid rgba(210, 230, 223, .25);
       border-radius: 999px; padding: 8px 16px; font: 700 13px/1 var(--font); cursor: pointer;
     }
     .skip:hover { background: rgba(255, 249, 237, .16); color: #FFF9ED; }
+    .skip:focus-visible, .actions button:focus-visible { outline: 3px solid #F6CC59; outline-offset: 2px; }
 
-    .scene { width: min(760px, 92vw); height: auto; position: relative; overflow: visible; }
-    .route { stroke-dashoffset: 400; animation: draw 1.1s ease-out .35s both, flow 1.2s linear 1.45s infinite; opacity: .9; }
-    .route.d2 { animation-delay: .5s, 1.6s; }
-    .route.d3 { animation-delay: .65s, 1.75s; }
-    .tag rect { fill: #0B3B37; stroke: rgba(210, 230, 223, .45); stroke-width: 1.2; }
-    .tag text { fill: #D2E6DF; }
-    .tag { opacity: 0; animation: fade-in .5s ease-out both; }
-    .t1 { animation-delay: .9s; } .t2 { animation-delay: 1.05s; } .t3 { animation-delay: 1.2s; }
-    .packets g { opacity: 0; animation: fade-in .15s linear .9s both; }
-    .packets g:nth-child(2) { animation-delay: 1.25s; } .packets g:nth-child(3) { animation-delay: 1.55s; }
-
-    .lesson { animation: pop .6s cubic-bezier(.2, .9, .3, 1.3) .1s both; transform-box: fill-box; transform-origin: center; }
-    .wave rect { transform-box: fill-box; transform-origin: center; animation: talk .9s ease-in-out infinite; }
-    .wave rect:nth-child(2) { animation-delay: -.15s; } .wave rect:nth-child(3) { animation-delay: -.45s; }
-    .wave rect:nth-child(4) { animation-delay: -.3s; } .wave rect:nth-child(5) { animation-delay: -.6s; }
-    .wave rect:nth-child(6) { animation-delay: -.75s; }
-    .phone { animation: pop .6s cubic-bezier(.2, .9, .3, 1.3) .25s both; transform-box: fill-box; transform-origin: center; }
-    .received { opacity: 0; transform-box: fill-box; transform-origin: center; animation: arrive .55s cubic-bezier(.2, .9, .3, 1.4) 2.75s both; }
-    .check { opacity: 0; transform-box: fill-box; transform-origin: center; animation: arrive .4s cubic-bezier(.2, .9, .3, 1.6) 3.35s both; }
-
-    .brand { position: relative; margin-top: 4px; }
-    h1 {
-      font-family: var(--serif); font-weight: 700; letter-spacing: -.015em;
-      font-size: clamp(40px, 6.4vw, 68px); line-height: 1.05; color: #FFF9ED;
-      animation: rise .7s ease-out .45s both;
+    .loader { position: absolute; left: 50%; bottom: 84px; height: 44px; transform: translateX(calc(-50% - 22px)); }
+    .track { position: absolute; left: 0; right: 0; top: 18px; height: 12px; border-radius: 9px; background: rgba(255, 255, 255, .18); }
+    .fill {
+      position: absolute; left: 0; top: 18px; height: 12px; border-radius: 9px;
+      background: linear-gradient(90deg, #F6CC59, #FFB547); box-shadow: 0 0 12px rgba(246, 204, 89, .6);
     }
-    .fil { margin-top: 10px; font-size: clamp(17px, 2.1vw, 21px); font-weight: 700; color: #F6CC59; animation: rise .7s ease-out .65s both; }
-    .en { margin-top: 4px; font-size: clamp(14px, 1.6vw, 16px); color: #B9D6CE; animation: rise .7s ease-out .8s both; }
+    .rocket { position: absolute; width: 40px; height: 40px; transform: rotate(45deg); }
+    .globe { position: absolute; right: -58px; top: -2px; width: 46px; height: 46px; }
+    .globe img { width: 100%; height: 100%; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .3)); }
+    .globe[data-state='checking'] img { animation: pulse 1.4s ease-in-out infinite; }
+    .badge {
+      position: absolute; right: -4px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%;
+      display: grid; place-items: center; font: 700 12px/1 var(--font); color: #fff; border: 2px solid #0B3B37;
+      animation: pop .4s cubic-bezier(.2, .9, .3, 1.6) both;
+    }
+    .badge.ok { background: #2E9E6B; }
+    .status {
+      position: absolute; left: 0; right: 0; bottom: 50px; margin: 0; text-align: center;
+      font: 700 14px var(--font); color: #D4ECE7; min-height: 21px;
+    }
 
-    .progress { width: min(340px, 80vw); margin-top: 26px; position: relative; animation: rise .6s ease-out .9s both; }
-    .bar { height: 6px; border-radius: 999px; background: rgba(210, 230, 223, .16); overflow: hidden; }
-    .bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #5FC7B5, #F6CC59); transition: width .25s linear; }
-    .progress p { margin-top: 10px; font-size: 14px; color: #D2E6DF; min-height: 21px; }
-    .credit { position: absolute; bottom: 22px; left: 0; right: 0; font-size: 13px; color: rgba(210, 230, 223, .7); letter-spacing: .02em; }
+    .offline {
+      position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); width: min(660px, calc(100% - 32px));
+      display: flex; gap: 16px; align-items: flex-start; padding: 18px 20px; border-radius: 20px; text-align: left;
+      background: rgba(255, 249, 237, .97); color: #163C3B; box-shadow: 0 18px 40px -16px rgba(0, 0, 0, .5);
+      animation: rise .4s ease-out both;
+    }
+    .offline img { width: 48px; height: 48px; flex: none; }
+    .grey { filter: grayscale(1); opacity: .7; }
+    .offline h2 { margin: 0 0 4px; font: 700 18px var(--serif); }
+    .offline p { margin: 0; font-size: 14px; line-height: 1.45; color: #4A5E5B; }
+    .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    .actions button { min-height: 40px; padding: 0 16px; border-radius: 999px; font: 700 14px var(--font); cursor: pointer; }
+    .btn-sun { background: #F6CC59; color: #163C3B; border: 0; }
+    .btn-line { background: transparent; color: #146B60; border: 2px solid #CFE3DC; }
 
-    @keyframes draw { from { stroke-dashoffset: 400; opacity: 0; } to { stroke-dashoffset: 0; opacity: .9; } }
-    @keyframes flow { to { stroke-dashoffset: -40; } }
-    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes pop { from { opacity: 0; transform: scale(.82); } to { opacity: 1; transform: scale(1); } }
-    @keyframes arrive { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
-    @keyframes talk { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
-    @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-    @keyframes breathe { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+    .credit { position: absolute; bottom: 16px; left: 0; right: 0; margin: 0; text-align: center; font-size: 12.5px; color: rgba(210, 230, 223, .65); letter-spacing: .02em; }
 
-    @media (max-width: 560px) { .tag text { font-size: 15px; } }
+    @keyframes ring { 0% { transform: scale(1); opacity: .85; } 100% { transform: scale(2.6); opacity: 0; } }
+    @keyframes drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+    @keyframes bars { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
+    @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+    @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+    @keyframes rise { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+    @media (max-width: 560px) {
+      .credit { display: none; }
+      .status { bottom: 30px; }
+      .loader { bottom: 64px; }
+      .pill { font-size: 12px; padding: 7px 11px; }
+    }
     @media (prefers-reduced-motion: reduce) {
-      .packets { display: none; }
-      .received, .check { opacity: 1; }
+      .confetti i, .rings.on span, .dot, .globe img, .signal i { animation: none !important; }
     }
   `,
 })
 export class Splash {
   readonly done = output<void>();
-  readonly progress = signal(0);
-  readonly status = signal(STEPS[0].text);
-  readonly leaving = signal(false);
+  readonly watch = new ConnectionWatch(API_URL);
+  readonly state = this.watch.state;
+  readonly confetti = CONFETTI;
+  readonly letterSrc = LETTER_SRC;
+  readonly extraX = EXTRA_X;
+  readonly y0 = Y0;
 
+  private readonly reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private extraWidth = EXTRA.length * 13.4;
+  private ctx: CanvasRenderingContext2D | null = null;
+
+  readonly g = signal<Geometry>(geometry(innerWidth, innerHeight, this.extraWidth));
+  readonly f = signal<Frame>(frame(0, 0, this.g(), 0, (s) => this.measure(s)));
+  readonly bar = signal(0);
+  readonly rocketTop = signal(2);
+  readonly clip = signal('none');
+  readonly leaving = signal(false);
+  readonly lift = signal(0);
+  private readonly elapsed = signal(0);
+  private readonly card = viewChild<ElementRef<HTMLElement>>('card');
+
+  readonly art = computed(() => {
+    const u = this.g().u;
+    return { left: -X0 * u, top: -Y0 * u, w: ART_W * u, h: ART_H * u };
+  });
+  readonly barOrigin = computed(() => `${(202 - X0) * this.g().u}px 0px`);
+  readonly viewBox = computed(() => `${X0} ${Y0} ${this.g().span} ${156 - Y0}`);
+  readonly fillW = computed(() => Math.max(12, this.g().barW * this.bar()));
+  readonly pillText = computed(() => ({ checking: 'Connecting…', online: 'Online', offline: 'Offline', preview: 'Preview mode' })[this.state()]);
+  readonly status = computed(() => {
+    switch (this.state()) {
+      case 'online':
+        return 'Connected · Konektado';
+      case 'preview':
+        return 'Preview mode · your work stays in this browser';
+      case 'offline':
+        return '';
+      default:
+        if (this.elapsed() < 1200) return 'Checking your internet…';
+        return this.elapsed() * (this.reduced ? 5 : SPEED) >= TOTAL_MS ? 'Still connecting…' : 'Connecting to the Pocket Lessons server…';
+    }
+  });
+
+  private raf = 0;
+  private t0 = 0;
+  private last = 0;
+  private started = false;
+  private exitAt = 0;
   private finished = false;
-  private readonly start = performance.now();
-  private readonly duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1600 : DURATION_MS;
 
   constructor() {
-    const timer = setInterval(() => {
-      const p = Math.min(1, (performance.now() - this.start) / this.duration);
-      this.progress.set(p);
-      const step = [...STEPS].reverse().find((s) => p >= s.at);
-      if (step && step.text !== this.status()) this.status.set(step.text);
-      if (p >= 1) this.finish();
-    }, 60);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    this.watch.start();
+    const onResize = () => this.g.set(geometry(innerWidth, innerHeight, this.extraWidth));
+    addEventListener('resize', onResize);
+    inject(DestroyRef).onDestroy(() => {
+      cancelAnimationFrame(this.raf);
+      removeEventListener('resize', onResize);
+      this.watch.stop();
+    });
+    this.raf = requestAnimationFrame((now) => this.tick(now));
+    // Like the phone: load every picture and the font first, so nothing pops in late (at most 1.5 s).
+    void this.prepare().then(() => {
+      this.g.set(geometry(innerWidth, innerHeight, this.extraWidth));
+      this.t0 = performance.now();
+      this.started = true;
+    });
   }
 
   @HostListener('document:keydown.escape')
   finish(): void {
     if (this.finished) return;
     this.finished = true;
-    this.progress.set(1);
-    this.status.set('Ready');
     this.leaving.set(true);
-    setTimeout(() => this.done.emit(), 500);
+    this.exitAt = performance.now();
+  }
+
+  private async prepare(): Promise<void> {
+    const pictures = PRELOAD.map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img.decode().catch(() => undefined);
+    });
+    const font = document.fonts?.load('700 25px "Atkinson Hyperlegible"').catch(() => undefined);
+    await Promise.race([Promise.all([...pictures, font]), new Promise((r) => setTimeout(r, 1500))]);
+    const w = this.measure(EXTRA);
+    if (w > 0) this.extraWidth = w;
+  }
+
+  /** Width of text in the tagline's font, in artwork units (Atkinson Hyperlegible Bold 25, 0.6 letter spacing). */
+  private measure(s: string): number {
+    if (!this.ctx) {
+      this.ctx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+      if (!this.ctx) return s.length * 13.4;
+    }
+    this.ctx.font = '700 25px "Atkinson Hyperlegible", "Segoe UI", sans-serif';
+    return this.ctx.measureText(s).width + 0.6 * s.length;
+  }
+
+  private tick(now: number): void {
+    const dt = Math.min(64, now - (this.last || now));
+    this.last = now;
+    const elapsed = this.started ? now - this.t0 : 0;
+    this.elapsed.set(elapsed);
+    const m = Math.min(TOTAL_MS, elapsed * (this.reduced ? 5 : SPEED));
+    const loop = this.reduced ? 0 : (now / 6000) % 1;
+    const state = this.state();
+    const fr = frame(m, loop, this.g(), state === 'offline' ? 1 : 0, (s) => this.measure(s));
+    this.f.set(fr);
+
+    // The bar follows the animation, but waits at 90% until the server has answered.
+    const connected = state === 'online' || state === 'preview';
+    let bar = fr.barAnim;
+    if (!connected) bar = Math.min(bar, 0.9);
+    else if (m >= TOTAL_MS) bar = Math.min(1, Math.max(bar, this.bar() + dt / 450));
+    else bar = Math.max(bar, this.bar());
+    this.bar.set(bar);
+    this.rocketTop.set(2 + Math.sin(loop * Math.PI * 2 * 4) * 2);
+
+    // Make room for the "no connection" card: lift the logo scene just enough (but keep the disc on screen).
+    const card = this.card()?.nativeElement;
+    const g = this.g();
+    const need = card ? g.wordTop + g.wordH + 18 - (card.offsetTop) : 0;
+    this.lift.set(Math.round(Math.max(0, Math.min(need, g.cy - 100))));
+
+    if (!this.finished && connected && m >= TOTAL_MS && bar >= 1) this.finish();
+
+    if (this.finished) {
+      // Leave with a circle, like the phone: the intro closes into the logo and the page shows around it.
+      const p = Math.min(1, (now - this.exitAt) / (this.reduced ? 250 : EXIT_MS));
+      const g = this.g();
+      const r = Math.hypot(Math.max(g.cx, g.w - g.cx), Math.max(g.cy, g.h - g.cy)) * (1 - easeInCubic(p));
+      this.clip.set(`circle(${r}px at ${g.cx}px ${g.cy}px)`);
+      if (p >= 1) {
+        this.done.emit();
+        return;
+      }
+    }
+    this.raf = requestAnimationFrame((t) => this.tick(t));
   }
 }
