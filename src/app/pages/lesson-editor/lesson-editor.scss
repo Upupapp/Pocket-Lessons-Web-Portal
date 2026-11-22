@@ -125,3 +125,10 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
   .page-body { grid-template-columns: 1fr; }
   .pic { height: 160px; }
 }
+
+// Subject field
+.select.need { border-color: #e0b04d; }
+.world-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 4px; border-radius: 999px; margin-right: 4px;
+  background: var(--tint); color: var(--deep); font-weight: 700; font-size: 12px;
+}

@@ -12,7 +12,7 @@
     <!-- ================= PHONE ================= -->
     <div class="phone">
       <div class="island" aria-hidden="true"></div>
-      <div class="screen" [class.cp]="isCheckpoint()">
+      <div class="screen" [class.cp]="isCheckpoint()" [style]="vars()">
         <div class="status" aria-hidden="true">
           <span>9:41</span>
           <span class="right">
@@ -28,6 +28,10 @@
           <!-- ---------- START ---------- -->
           @case ('start') {
             <div class="start">
+              <div class="world">
+                <img [src]="icon(theme().hero)" alt="" width="38" height="38" />
+                <span><b>{{ theme().child }}</b>{{ theme().worldFil }}</span>
+              </div>
               <p class="unit-name">{{ unitTitle() || 'Aralin' }}</p>
               <ol class="trail" aria-label="Learning path">
                 @for (n of pathNodes(); track $index; let i = $index) {
@@ -41,7 +45,7 @@
                       } @else if (n.state === 'locked') {
                         <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2.5" fill="currentColor" /><path d="M8 10V7.5a4 4 0 0 1 8 0V10" fill="none" stroke="currentColor" stroke-width="2.4" /></svg>
                       } @else {
-                        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5C7.5 4.5 10 4.8 12 6.5c2-1.7 4.5-2 7-1V19c-2.5-1-5-.7-7 1-2-1.7-4.5-2-7-1z" fill="currentColor" /><path d="M12 6.5V20" stroke="#146B60" stroke-width="1.6" /></svg>
+                        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5C7.5 4.5 10 4.8 12 6.5c2-1.7 4.5-2 7-1V19c-2.5-1-5-.7-7 1-2-1.7-4.5-2-7-1z" fill="currentColor" /><path d="M12 6.5V20" [attr.stroke]="theme().main" stroke-width="1.6" /></svg>
                       }
                     </span>
                   </li>
@@ -77,16 +81,12 @@
                   @if (p.pictureId) {
                     <pl-media-image [mediaId]="p.pictureId" alt="" />
                   } @else {
-                    <svg class="scene" viewBox="0 0 300 170" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-                      <rect width="300" height="170" fill="#FDF3DC" />
-                      <circle cx="244" cy="44" r="22" fill="#F6CC59" />
-                      <g stroke="#F6CC59" stroke-width="4" stroke-linecap="round"><path d="M244 10v8M244 70v8M210 44h8M270 44h8M220 20l5 5M263 63l5 5M268 20l-5 5M225 63l-5 5" /></g>
-                      <path d="M0 120 Q60 84 130 112 T300 104 V170 H0z" fill="#D2E6DF" />
-                      <path d="M0 140 Q80 112 170 134 T300 128 V170 H0z" fill="#9FCFB8" />
-                      <path d="M112 124 q20 -10 38 0 v26 q-18 -8 -38 0z" fill="#fff" stroke="#146B60" stroke-width="3" />
-                      <path d="M188 124 q-20 -10 -38 0 v26 q18 -8 38 0z" fill="#FFFDF8" stroke="#146B60" stroke-width="3" />
-                      <circle cx="56" cy="40" r="5" fill="#fff" /><circle cx="76" cy="30" r="3" fill="#fff" /><circle cx="94" cy="44" r="4" fill="#fff" />
-                    </svg>
+                    <div class="scene-world" aria-hidden="true">
+                      <img class="f f1" [src]="icon(theme().icons[0])" alt="" />
+                      <img class="f f2" [src]="icon(theme().icons[1])" alt="" />
+                      <img class="f f3" [src]="icon(theme().icons[2])" alt="" />
+                      <img class="hero" [src]="icon(theme().hero)" alt="" />
+                    </div>
                     <span class="no-pic">No picture yet</span>
                   }
                 </div>

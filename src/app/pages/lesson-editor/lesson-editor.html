@@ -84,6 +84,19 @@
             </select>
           </label>
           <label class="field">
+            <span>Subject</span>
+            <select class="select" [class.need]="!l.subject" [ngModel]="l.subject ?? ''" (ngModelChange)="setSubject($event)">
+              @if (!l.subject) { <option value="" disabled>Choose a subject</option> }
+              @for (s of subjects; track s.key) { <option [value]="s.key">{{ s.childEn }} · {{ s.world }}</option> }
+            </select>
+            <span class="hint">
+              @if (l.subject) {
+                <span class="world-chip" [style.--main]="theme().main" [style.--tint]="theme().tint" [style.--deep]="theme().deep"><img [src]="'subjects/' + theme().hero + '.webp'" alt="" width="16" height="16" />{{ theme().name }}</span>
+              } @else { Needed before publishing. }
+              @if (unit()) { Changes all {{ path().length }} lessons in this unit. }
+            </span>
+          </label>
+          <label class="field">
             <span>Length</span>
             <select class="select" [ngModel]="l.minutes" (ngModelChange)="patch({ minutes: +$event })">
               @for (m of [5, 6, 7, 8, 9, 10]; track m) { <option [value]="m">{{ m }} minutes</option> }

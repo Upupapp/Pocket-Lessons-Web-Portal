@@ -13,6 +13,8 @@ import {
 import { LANGUAGES, LEVELS, LEVEL_HINT, Level, PASS_MARK } from '../../core/models';
 import { pdfToText } from '../../core/pdf-text';
 import { Coach } from '../../shared/coach';
+import { SubjectPicker } from '../../shared/subject-picker';
+import { SubjectKey, detectLanguage, subjectOf, suggestSubject } from '../../core/subjects';
 
 /**
  * Import a lesson file (WEB-06 extension): the portal reads the story, questions and answer key,
@@ -20,7 +22,7 @@ import { Coach } from '../../shared/coach';
  */
 @Component({
   selector: 'pl-lesson-import',
-  imports: [FormsModule, RouterLink, Coach],
+  imports: [FormsModule, RouterLink, Coach, SubjectPicker],
   templateUrl: './lesson-import.html',
   styleUrl: './lesson-import.scss',
 })
@@ -48,6 +50,14 @@ export class LessonImport {
   readonly language = signal<string>('Filipino');
   readonly count = signal(1);
   readonly suggested = signal(1);
+  /** The subject world the teacher confirmed. Lessons can't be created until there is one. */
+  readonly subject = signal<SubjectKey | null>(null);
+  readonly suggestion = computed(() => {
+    const p = this.parsed();
+    return p ? suggestSubject({ title: this.title() || p.title, label: p.label, text: p.paragraphs.join(' '), language: this.language() }) : null;
+  });
+  /** The chosen world, or the suggested one until the teacher chooses. */
+  readonly theme = computed(() => subjectOf(this.subject() ?? this.suggestion()?.key));
 
   readonly totalWords = computed(() => this.parsed()?.paragraphs.reduce((s, p) => s + countWords(p), 0) ?? 0);
   readonly maxCount = computed(() => Math.min(6, this.parsed()?.paragraphs.length ?? 1));
@@ -58,7 +68,7 @@ export class LessonImport {
     return p ? planUnit(p, this.count(), this.title().trim() || p.title) : null;
   });
   readonly passNeeded = computed(() => Math.ceil((this.parsed()?.questions.length ?? 0) * PASS_MARK));
-  readonly canCreate = computed(() => !!this.parsed()?.paragraphs.length && !!this.title().trim());
+  readonly canCreate = computed(() => !!this.parsed()?.paragraphs.length && !!this.title().trim() && !!this.subject());
 
   async onFile(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;
@@ -122,6 +132,9 @@ export class LessonImport {
     const n = suggestedLessonCount(parsed.paragraphs);
     this.parsed.set(parsed);
     this.title.set(parsed.title);
+    this.subject.set(null);
+    const lang = detectLanguage(parsed.paragraphs.join(' '));
+    if (lang) this.language.set(lang);
     this.suggested.set(n);
     this.count.set(n);
   }
@@ -144,10 +157,15 @@ export class LessonImport {
         language: this.language(),
         sourceFile: this.fileName() || undefined,
         sourceLabel: parsed.label || undefined,
+        subject: this.subject()!,
       },
       plan,
     );
     void this.router.navigate(['/app/lessons'], { queryParams: { unit: unit.id } });
+  }
+
+  subjectName(key: SubjectKey): string {
+    return subjectOf(key).childEn;
   }
 
   excerpt(text: string, words = 14): string {

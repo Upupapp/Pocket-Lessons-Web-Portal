@@ -1,8 +1,9 @@
-import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { Activity, Lesson, LessonPage, PASS_MARK } from '../../core/models';
 import { media } from '../../core/storage';
 import { Coach, CoachMood } from '../../shared/coach';
 import { MediaImage } from '../../shared/media-image';
+import { ensureSubjectFont, subjectIcon, subjectOf, themeVars } from '../../core/subjects';
 
 type Screen = 'start' | 'step' | 'finish';
 type Feedback = 'good' | 'retry' | 'reveal' | null;
@@ -33,6 +34,10 @@ export class LessonPreview {
   readonly closed = output<void>();
 
   readonly letters = 'ABCD';
+  readonly icon = subjectIcon;
+  /** The lesson's subject world: its colours, title font and pictures, as the phone shows them. */
+  readonly theme = computed(() => subjectOf(this.lesson().subject));
+  readonly vars = computed(() => themeVars(this.theme()));
   readonly screen = signal<Screen>('start');
   readonly index = signal(0);
   readonly picked = signal<number | null>(null);
@@ -152,6 +157,8 @@ export class LessonPreview {
 
   constructor() {
     inject(DestroyRef).onDestroy(() => this.stopAudio());
+    // The world's title font loads only when a lesson in that world is previewed.
+    effect(() => ensureSubjectFont(this.theme()));
   }
 
   begin(): void {

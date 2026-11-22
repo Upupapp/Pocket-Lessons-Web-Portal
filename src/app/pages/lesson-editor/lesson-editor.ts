@@ -23,6 +23,7 @@ import { MediaImage } from '../../shared/media-image';
 import { shrinkPicture } from '../../shared/picture';
 import { Recording, VoiceRecorder } from '../../shared/voice-recorder';
 import { LessonPreview } from './lesson-preview';
+import { SUBJECTS, SubjectKey, isSubject, subjectOf } from '../../core/subjects';
 
 @Component({
   selector: 'pl-lesson-editor',
@@ -43,6 +44,7 @@ export class LessonEditor {
   readonly minChoices = MIN_CHOICES;
   readonly maxChoices = MAX_CHOICES;
   readonly letters = 'ABCD';
+  readonly subjects = SUBJECTS;
 
   readonly lesson = signal<Lesson | null>(null);
   readonly notFound = signal(false);
@@ -82,6 +84,7 @@ export class LessonEditor {
   readonly prevLesson = computed(() => this.path()[this.position() - 1]);
   readonly nextLesson = computed(() => this.path()[this.position() + 1]);
   readonly isCheckpoint = computed(() => this.lesson()?.kind === 'checkpoint');
+  readonly theme = computed(() => subjectOf(this.lesson()?.subject));
   readonly passNeeded = computed(() => Math.ceil((this.lesson()?.activities.length ?? 0) * PASS_MARK));
   readonly recordedQuestions = computed(() => this.lesson()?.activities.filter((a) => a.audioId).length ?? 0);
   readonly newWord = signal('');
@@ -117,6 +120,18 @@ export class LessonEditor {
   }
 
   // ---------- Editing ----------
+
+  /**
+   * The subject world. In a unit it changes every lesson of the unit, so a story stays in one world.
+   * It only changes where the lesson is shown, so a published lesson stays published.
+   */
+  setSubject(key: string): void {
+    const current = this.lesson();
+    if (!current || !isSubject(key)) return;
+    this.lesson.set({ ...current, subject: key as SubjectKey });
+    if (current.unitId && this.unit()) this.data.setUnitSubject(current.unitId, key as SubjectKey);
+    this.scheduleSave();
+  }
 
   patch(changes: Partial<Lesson>): void {
     const current = this.lesson();

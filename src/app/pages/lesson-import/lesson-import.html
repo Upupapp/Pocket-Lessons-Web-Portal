@@ -90,6 +90,25 @@
           @for (w of p.warnings; track w) { <p class="warning" role="alert">{{ w }}</p> }
         </section>
 
+        <section class="card subject" [class.missing]="!subject()">
+          <div class="subject-head">
+            <div>
+              <h2>Subject</h2>
+              <p class="small muted">
+                Children will find this story in the subject's world, with its colours and pictures.
+                @if (suggestion(); as s) { <strong>Suggested: {{ subjectName(s.key) }}.</strong> {{ s.reason }} }
+              </p>
+            </div>
+            @if (subject(); as k) {
+              <span class="chosen" [style.--main]="theme().main" [style.--tint]="theme().tint" [style.--deep]="theme().deep">
+                <img [src]="'subjects/' + theme().hero + '.webp'" alt="" width="22" height="22" />{{ theme().childEn }} · {{ theme().world }}
+              </span>
+            }
+          </div>
+          <pl-subject-picker [value]="subject()" [suggested]="suggestion()?.key ?? null" label="Subject of this story" (picked)="subject.set($event)" />
+          @if (!subject()) { <p class="choose" role="status">Tap a world to confirm the subject. The suggested one is marked.</p> }
+        </section>
+
         <section class="card">
           <h2>Settings</h2>
           <div class="settings">
@@ -121,7 +140,7 @@
         </section>
 
         @if (plan(); as pl) {
-          <section class="card">
+          <section class="card" [style.--path]="theme().main" [style.--path-on]="theme().on">
             <h2>The learning path</h2>
             <p class="small muted">Children see one circle at a time. Each circle opens when the one before is done.</p>
             <ol class="path">
@@ -188,6 +207,7 @@
           <button type="button" class="btn btn-primary full" (click)="create()" [disabled]="!canCreate()">
             Create {{ plan()?.lessons?.length }} lessons + checkpoint
           </button>
+          @if (!subject()) { <p class="small muted center-note">Choose the subject first.</p> }
           <button type="button" class="btn btn-ghost full" (click)="reset()">Choose another file</button>
         </section>
       </aside>
