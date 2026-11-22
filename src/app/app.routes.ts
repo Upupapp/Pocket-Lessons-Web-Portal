@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
-import { signedInGuard, signedOutGuard, startRedirect } from './core/guards';
+import { adminGuard, signedInGuard, signedOutGuard, startRedirect } from './core/guards';
+import { AdminShell } from './layout/admin-shell';
 import { Shell } from './layout/shell';
 
 const T = (title: string) => `${title} · Pocket Lessons`;
@@ -46,6 +47,30 @@ export const routes: Routes = [
         title: T('Check reading'),
         loadComponent: () => import('./pages/assess/assess').then((m) => m.Assess),
       },
+    ],
+  },
+  {
+    path: 'setup/:token',
+    title: T('Set up your account'),
+    loadComponent: () => import('./pages/setup/setup').then((m) => m.Setup),
+  },
+  {
+    path: 'admin',
+    component: AdminShell,
+    canActivate: [adminGuard],
+    children: [
+      { path: '', title: T('Administrator'), loadComponent: () => import('./pages/admin/overview').then((m) => m.AdminOverviewPage) },
+      { path: 'centers', title: T('Centers'), loadComponent: () => import('./pages/admin/centers').then((m) => m.AdminCentersPage) },
+      { path: 'staff', title: T('Teachers and staff'), loadComponent: () => import('./pages/admin/staff').then((m) => m.AdminStaffPage) },
+      { path: 'classes', title: T('Classes'), loadComponent: () => import('./pages/admin/classes').then((m) => m.AdminClassesPage) },
+      { path: 'families', title: T('Parents and families'), loadComponent: () => import('./pages/admin/families').then((m) => m.AdminFamiliesPage) },
+      { path: 'students', title: T('Students'), loadComponent: () => import('./pages/admin/students').then((m) => m.AdminStudentsPage) },
+      {
+        path: 'added-by-parents',
+        title: T('Added by parents'),
+        loadComponent: () => import('./pages/admin/parent-added').then((m) => m.AdminParentAddedPage),
+      },
+      { path: 'audit', title: T('Audit log'), loadComponent: () => import('./pages/admin/audit').then((m) => m.AdminAuditPage) },
     ],
   },
   { path: '**', redirectTo: '' },
