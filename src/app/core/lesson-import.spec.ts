@@ -73,6 +73,14 @@ describe('parseLessonText', () => {
     expect(p.title).toBe('Ang Bola');
     expect(p.paragraphs).toHaveLength(2);
   });
+
+  it('drops the invisible characters a PDF leaves for icons (the server cannot store U+0000)', () => {
+    // As in "LESSON 1 - MATH KS1 - Number Form.pdf": each section heading starts with an icon that has no letter.
+    const p = parseLessonText('Ang Bola\n\n\u0000 Magic Word: bola.\n\n\u0000 Bata Break: May bola si Ana.\u0007');
+    const all = [p.title, ...p.paragraphs].join(' ');
+    expect(all).not.toMatch(/[\u0000-\u0008]/);
+    expect(p.paragraphs).toEqual(['Magic Word: bola.', 'Bata Break: May bola si Ana.']);
+  });
 });
 
 describe('splitting into short lessons', () => {
