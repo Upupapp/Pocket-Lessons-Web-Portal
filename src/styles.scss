@@ -29,6 +29,28 @@
   --r-md: 12px;
   --r-lg: 18px;
   --shadow: 0 1px 2px rgba(22, 60, 59, 0.06), 0 8px 24px -12px rgba(22, 60, 59, 0.18);
+
+  // The soft green "essence" behind pages (shared/wave-bg.ts): a pale mint wash, and waves in three corners
+  // that fade towards the middle. Change the look here, in one place.
+  --bg-wave-s1: #e9f6ee;
+  --bg-wave-s2: #f0f7f2;
+  --bg-wave-s3: #eaf5ee;
+  --bg-wave-s4: #dcefe4;
+  --bg-wave-base: linear-gradient(160deg, var(--bg-wave-s1) 0%, var(--bg-wave-s2) 38%, var(--bg-wave-s3) 70%, var(--bg-wave-s4) 100%);
+  // The same wash running straight down, for the welcome card, whose wavy edge must match it exactly.
+  --bg-wave-base-v: linear-gradient(180deg, var(--bg-wave-s1) 0%, var(--bg-wave-s2) 38%, var(--bg-wave-s3) 70%, var(--bg-wave-s4) 100%);
+  --bg-wave-1: #9fd8b9;
+  --bg-wave-2: #85cba6;
+  --bg-wave-3: #93d3b0;
+  --bg-wave-4: #7cc59d;
+  --bg-wave-fade-1: #c4e6d3;
+  --bg-wave-fade-2: #b5e0c8;
+  // How strongly each wave starts in its corner (0.55 to 0.80), before fading to nothing.
+  --bg-wave-o1: 0.72;
+  --bg-wave-o2: 0.55;
+  --bg-wave-o3: 0.68;
+  --bg-wave-o4: 0.6;
+  --bg-wave-o-line: 0.55;
 }
 
 *, *::before, *::after { box-sizing: border-box; }

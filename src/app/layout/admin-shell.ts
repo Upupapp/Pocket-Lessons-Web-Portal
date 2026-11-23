@@ -5,6 +5,7 @@ import { apiMode } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { Processing } from '../core/processing';
 import { Logo } from '../shared/logo';
+import { WaveBg } from '../shared/wave-bg';
 
 interface NavItem {
   link: string;
@@ -28,7 +29,7 @@ const NAV: NavItem[] = [
 /** The administrator's workspace: one AHA-wide administrator, every center. */
 @Component({
   selector: 'pl-admin-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo, WaveBg],
   template: `
     <div class="layout ws" [class.open]="menuOpen()">
       <aside class="side">
@@ -56,6 +57,8 @@ const NAV: NavItem[] = [
       </aside>
 
       <div class="main">
+        <!-- A soft green essence behind the content: still, in the corners, never behind the cards' text. -->
+        <pl-wave-bg class="waves" [fixed]="true" />
         <header class="top">
           <button type="button" class="burger" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-label="Menu">
             <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
@@ -110,7 +113,10 @@ const NAV: NavItem[] = [
     .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-tint); border: 1px solid var(--accent-tint-2); color: var(--title); font-weight: 700; font-size: 13px; flex: none; }
     .out { background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-2); border-radius: 10px; min-height: 36px; font: 700 13px var(--font); cursor: pointer; margin: 0 4px; transition: border-color .15s, color .15s; }
     .out:hover { border-color: var(--accent); color: var(--accent); }
-    .main { min-width: 0; display: flex; flex-direction: column; background: radial-gradient(1100px 380px at 100% 0%, rgba(20, 107, 96, .05), transparent 70%), var(--ground); }
+    .main { min-width: 0; display: flex; flex-direction: column; background: var(--ground); }
+    /* The waves fill the content area beside the sidebar and under the header; the page sits above them. */
+    .waves { --wave-left: 264px; --wave-top: 60px; }
+    .content, .foot, .sync { position: relative; z-index: 1; }
     .top {
       position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; min-height: 60px;
       padding: 0 clamp(16px, 4vw, 40px); background: var(--surface); border-bottom: 1px solid var(--line);
@@ -127,6 +133,7 @@ const NAV: NavItem[] = [
       background: var(--surface); border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted);
     }
     @media (max-width: 960px) {
+      .waves { --wave-left: 0px; }
       .layout { grid-template-columns: 1fr; background: var(--ground); }
       .side { position: fixed; z-index: 50; width: 280px; left: 0; transform: translateX(-100%); transition: transform .2s; }
       .open .side { transform: none; box-shadow: 0 0 0 100vmax rgba(20, 27, 24, .32); }
