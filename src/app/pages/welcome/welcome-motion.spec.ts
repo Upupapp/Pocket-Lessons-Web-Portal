@@ -11,6 +11,7 @@ describe('welcome pages', () => {
       expect(p.body[1].length).toBeGreaterThan(20);
     }
     expect(say(WORDS.next, 'fil')).toBe('Susunod');
+    expect(say(WORDS.back, 'fil')).toBe('Bumalik');
     expect(ALL_ICONS).toEqual(expect.arrayContaining(['open-book', 'memo', 'trophy', 'sun', 'girl', 'boy']));
   });
 

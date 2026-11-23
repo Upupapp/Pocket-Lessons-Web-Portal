@@ -92,6 +92,7 @@ export const PAGES: WelcomePage[] = [
 /** The words around the pages, in both languages. */
 export const WORDS = {
   next: ['Next', 'Susunod'] as Pair,
+  back: ['Back', 'Bumalik'] as Pair,
   start: ['Get started', 'Magsimula na'] as Pair,
   language: ['Language', 'Wika'] as Pair,
   page: ['Page', 'Pahina'] as Pair,

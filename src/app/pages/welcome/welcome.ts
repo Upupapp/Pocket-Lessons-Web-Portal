@@ -132,26 +132,57 @@ const WIDE = '(min-width: 900px)';
                 ></button>
               }
             </div>
-            <span class="count">{{ page() + 1 }} / {{ pages.length }}</span>
+            <span class="count" [style.--num-y.px]="textDir() < 0 ? -9 : 9">
+              @for (k of [page()]; track k) {<span class="num">{{ k + 1 }}</span>} / {{ pages.length }}
+            </span>
           </div>
 
-          <div class="say" aria-live="polite">
+          <!--
+            The words change in layers: the block slides in from the side it is coming from, the title's words
+            rise into place one after another, then the sentence is written in from left to right.
+          -->
+          <div class="say" aria-live="polite" [style.--in-x.px]="textDir() * 26" [style.--out-x.px]="textDir() * -14">
             @if (leavingText(); as old) {
               <div class="text out" aria-hidden="true">
-                <p class="h1">{{ say(pages[old.page].title, old.lang) }}</p>
-                <p>{{ say(pages[old.page].body, old.lang) }}</p>
+                <p class="h1">
+                  @for (w of split(say(pages[old.page].title, old.lang)); track $index) {<span class="w" [style.--i]="$index">{{ w }}</span>{{ ' ' }}}
+                </p>
+                <p class="body">{{ say(pages[old.page].body, old.lang) }}</p>
               </div>
             }
             @for (key of [textKey()]; track key) {
               <div class="text">
-                <h1>{{ t(pages[page()].title) }}</h1>
-                <p>{{ t(pages[page()].body) }}</p>
+                <h1>
+                  <span class="sr-only">{{ t(pages[page()].title) }}</span>
+                  <span aria-hidden="true">
+                    @for (w of split(t(pages[page()].title)); track $index) {<span class="w" [style.--i]="$index">{{ w }}</span>{{ ' ' }}}
+                  </span>
+                </h1>
+                <p class="body" [style.--n]="split(t(pages[page()].title)).length">{{ t(pages[page()].body) }}</p>
               </div>
             }
           </div>
 
           <div class="go">
-            <button type="button" class="next" [class.last]="last()" (click)="next()" [attr.aria-label]="last() ? t(words.start) : t(words.next)">
+            <!-- Back fades in as page 2 comes in (it follows a drag too); page 1 has nowhere to go back to. -->
+            <button
+              #backBtn
+              type="button"
+              class="back"
+              [style.opacity]="backness()"
+              [style.transform]="reduced ? null : 'translateX(' + (1 - backness()) * 14 + 'px) scale(' + (0.86 + 0.14 * backness()) + ')'"
+              [style.visibility]="backness() < 0.02 ? 'hidden' : null"
+              [style.pointer-events]="backness() < 0.5 ? 'none' : null"
+              [attr.tabindex]="page() === 0 ? -1 : null"
+              [attr.aria-hidden]="page() === 0 ? 'true' : null"
+              [attr.aria-label]="t(words.back)"
+              (click)="back()"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 12H6M11 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button #nextBtn type="button" class="next" [class.last]="last()" (click)="next()" [attr.aria-label]="last() ? t(words.start) : t(words.next)">
               @if (!last()) {
                 <svg class="progress" viewBox="0 0 64 64" aria-hidden="true">
                   <circle cx="32" cy="32" r="28" class="track" />
@@ -222,12 +253,33 @@ const WIDE = '(min-width: 900px)';
     .dots { display: flex; gap: 6px; align-items: center; }
     .dot { height: 10px; padding: 0; border: 0; border-radius: 9px; cursor: pointer; }
     .count { margin-left: auto; font: 700 13px var(--font); color: #55706E; font-variant-numeric: tabular-nums; }
+    .num { display: inline-block; animation: num-in .45s cubic-bezier(.16, 1, .3, 1) both; }
     .say { position: relative; min-height: 9.5em; }
-    .text { max-width: 30em; animation: text-in .28s ease-out .08s both; }
-    .text.out { position: absolute; inset: 0 auto auto 0; animation: text-out .16s ease-in both; pointer-events: none; }
+
+    /* Layer 1: the whole block slides in from the side it comes from (and the old one slips away the other way). */
+    .text { max-width: 30em; animation: text-in .5s cubic-bezier(.16, 1, .3, 1) both; }
+    .text.out { position: absolute; inset: 0 auto auto 0; animation: text-out .26s ease-in both; pointer-events: none; }
     h1, .text p.h1 { font-family: var(--serif); font-weight: 700; font-size: clamp(30px, 3.1vw, 42px); line-height: 1.15; color: #163C3B; text-wrap: balance; margin: 0; }
-    .text p { margin-top: 10px; font-size: 17px; line-height: 1.55; color: #55706E; }
-    .go { display: flex; justify-content: flex-end; }
+    .text p.body { margin-top: 10px; font-size: 17px; line-height: 1.55; color: #55706E; }
+    /* Layer 2: the title's words rise into place one after another, coming into focus; the old words lift away. */
+    .w { display: inline-block; }
+    .text:not(.out) .w { animation: word-in .56s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(.05s + var(--i) * .045s); }
+    .text.out .w { animation: word-out .22s ease-in both; animation-delay: calc(var(--i) * .02s); }
+    /* Layer 3: after the title, the sentence is written in from left to right behind a soft edge. */
+    .text:not(.out) .body {
+      -webkit-mask-image: linear-gradient(100deg, #000 42%, transparent 58%); mask-image: linear-gradient(100deg, #000 42%, transparent 58%);
+      -webkit-mask-size: 280% 100%; mask-size: 280% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+      animation: write-on .8s cubic-bezier(.33, 1, .68, 1) both; animation-delay: calc(.16s + var(--n) * .045s);
+    }
+
+    .go { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .back {
+      flex: none; width: 54px; height: 54px; border-radius: 50%; cursor: pointer; display: grid; place-items: center;
+      background: #fff; color: var(--accent); border: 2px solid color-mix(in srgb, var(--accent) 45%, #fff);
+      transition: background .16s, border-color .16s;
+    }
+    .back:hover { background: color-mix(in srgb, var(--accent) 9%, #fff); border-color: var(--accent); }
+    .back:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
     .next {
       position: relative; height: 68px; width: 68px; border: 0; border-radius: 40px; cursor: pointer; color: #fff;
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -242,8 +294,12 @@ const WIDE = '(min-width: 900px)';
     .progress .fill { stroke: #fff; stroke-linecap: round; }
     .label { font: 700 18px var(--font); letter-spacing: .03em; white-space: nowrap; }
     .arrow { flex: none; position: relative; }
-    @keyframes text-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
-    @keyframes text-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-12px); } }
+    @keyframes text-in { from { opacity: 0; transform: translateX(var(--in-x, 26px)); } to { opacity: 1; transform: none; } }
+    @keyframes text-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(var(--out-x, -14px)); } }
+    @keyframes word-in { from { opacity: 0; transform: translateY(.6em) rotate(2deg); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+    @keyframes word-out { to { opacity: 0; transform: translateY(-.45em); filter: blur(4px); } }
+    @keyframes write-on { from { -webkit-mask-position: 100% 0; mask-position: 100% 0; } to { -webkit-mask-position: 0 0; mask-position: 0 0; } }
+    @keyframes num-in { from { opacity: 0; transform: translateY(var(--num-y, 9px)); } to { opacity: 1; transform: none; } }
 
     /* Phones and narrow windows: pictures on top, words below, like the mobile app (no trading sides). */
     @media (max-width: 899px) {
@@ -256,13 +312,14 @@ const WIDE = '(min-width: 900px)';
       .wave.top { display: block; left: 0; top: -34px; width: 100%; height: 40px; }
       .say { min-height: 8.5em; }
       h1, .text p.h1 { font-size: 28px; }
-      .text p { font-size: 16px; }
+      .text p.body { font-size: 16px; }
+      .back { width: 50px; height: 50px; }
       .logo { transform: scale(.82); transform-origin: right center; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .text { animation: none; }
+      .text, .num, .text:not(.out) .w, .text:not(.out) .body { animation: none; }
       .text.out { display: none; }
-      .next { transition: none; }
+      .next, .back { transition: none; }
     }
   `,
 })
@@ -309,6 +366,10 @@ export class Welcome {
     return `${(Math.min(PAGES.length, Math.max(0, this.pos() + 1)) / PAGES.length) * circ} ${circ}`;
   });
   readonly textKey = computed(() => `${this.page()}-${this.lang()}`);
+  /** Which way the words move: 1 = to the next page, -1 = back, 0 = the language changed (no sliding). */
+  readonly textDir = signal(1);
+  /** The back button comes in with page 2 (0 on page 1, 1 from page 2 on), following a drag too. */
+  readonly backness = computed(() => Math.min(1, Math.max(0, this.pos())));
   /** The words that were showing, fading out while the new ones come in (like the phone's AnimatedSwitcher). */
   readonly leavingText = signal<{ page: number; lang: Lang } | null>(null);
   private shown = { page: this.page(), lang: this.lang() };
@@ -316,6 +377,7 @@ export class Welcome {
   readonly say = say;
 
   private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
+  private readonly nextBtn = viewChild<ElementRef<HTMLButtonElement>>('nextBtn');
   private tween: { from: number; to: number; start: number; dur: number } | null = null;
   private dragging: { id: number; x0: number; pos0: number; page0: number; lastX: number; lastT: number; v: number; moved: boolean } | null = null;
   private raf = 0;
@@ -395,7 +457,14 @@ export class Welcome {
     return (rad * 180) / Math.PI;
   }
 
+  /** A title's words, so each can rise into place on its own. */
+  split(s: string): string[] {
+    return s.split(/\s+/).filter(Boolean);
+  }
+
   setLang(l: Lang): void {
+    if (l === this.lang()) return;
+    this.textDir.set(0);
     this.lang.set(l);
     local.set('welcomeLang', l);
   }
@@ -404,6 +473,7 @@ export class Welcome {
     const to = Math.min(PAGES.length - 1, Math.max(0, i));
     const from = this.pos();
     if (Math.abs(to - from) < 0.001) return;
+    this.textDir.set(to > from ? 1 : -1);
     const dur = this.reduced ? 220 : Math.max(240, (this.wide() ? PAGE_MS_WIDE : PAGE_MS) * Math.min(1.4, Math.abs(to - from)));
     this.tween = { from, to, start: performance.now(), dur };
   }
@@ -416,6 +486,13 @@ export class Welcome {
 
   prev(): void {
     this.goTo(Math.round(this.tween ? this.tween.to : this.pos()) - 1);
+  }
+
+  /** The ← button. On page 1 it hides, so the keyboard focus moves to the round Next button instead of getting lost. */
+  back(): void {
+    const target = Math.round(this.tween ? this.tween.to : this.pos()) - 1;
+    this.prev();
+    if (target <= 0) this.nextBtn()?.nativeElement.focus({ preventScroll: true });
   }
 
   @HostListener('document:keydown', ['$event'])
@@ -443,7 +520,10 @@ export class Welcome {
     const d = this.dragging;
     if (!d || e.pointerId !== d.id) return;
     const dx = e.clientX - d.x0;
-    if (Math.abs(dx) > 4) d.moved = true;
+    if (Math.abs(dx) > 4) {
+      d.moved = true;
+      this.textDir.set(dx < 0 ? 1 : -1); // dragging left heads for the next page
+    }
     const dt = Math.max(1, e.timeStamp - d.lastT);
     const span = this.span();
     d.v = 0.7 * d.v + 0.3 * (((e.clientX - d.lastX) / span) * (1000 / dt));
