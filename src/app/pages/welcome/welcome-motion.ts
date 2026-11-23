@@ -198,16 +198,25 @@ export interface SceneView {
 
 const TAU = Math.PI * 2;
 
+export interface SceneOptions {
+  /** How far a page slides as it leaves, in stage widths: 1 = a whole page, like the phone. */
+  drift?: number;
+  /** With reduced motion, how quickly a leaving page fades: 1 = over the whole turn, 2 = gone halfway. */
+  fade?: number;
+}
+
 /**
  * Page k's picture when the pages stand at `pos` (0..2), on a stage of w × h px, at loop time t (0..1 over 8 s).
  * Layers slide faster than the page itself (glow 0.25, hero 0.15, floaters 0.45 × depth, orbit 0.6) for depth.
  * With reduced motion the pages cross-fade in place and nothing drifts.
  */
-export function scene(k: number, pos: number, w: number, h: number, t: number, reduced = false): SceneView {
+export function scene(k: number, pos: number, w: number, h: number, t: number, reduced = false, opts: SceneOptions = {}): SceneView {
   const page = PAGES[k];
   const delta = k - pos;
+  // How far this page has slid, in stage widths (positions only; fading still follows the whole turn).
+  const m = delta * (opts.drift ?? 1);
   const par = reduced ? 0 : 1;
-  const shift = reduced ? 0 : delta * w;
+  const shift = reduced ? 0 : m * w;
   const heroSize = Math.min(w * 0.46, h * 0.5, 340);
   const cx = w / 2;
   const cy = h * 0.52;
@@ -229,7 +238,7 @@ export function scene(k: number, pos: number, w: number, h: number, t: number, r
       const s = f.size * kz * (isFront ? 1.15 : 0.85);
       back.push({
         icon: f.icon,
-        x: cx + Math.cos(a) * rx - s / 2 + delta * w * 0.6 * par,
+        x: cx + Math.cos(a) * rx - s / 2 + m * w * 0.6 * par,
         y: cy + Math.sin(a) * ry - s / 2,
         size: s,
         rotate: 0,
@@ -244,7 +253,7 @@ export function scene(k: number, pos: number, w: number, h: number, t: number, r
       const s = f.size * kz;
       back.push({
         icon: f.icon,
-        x: f.x * w - s / 2 + delta * w * 0.45 * depth * par,
+        x: f.x * w - s / 2 + m * w * 0.45 * depth * par,
         y: f.y * h - s / 2 + fb,
         size: s,
         rotate: reduced ? 0 : Math.sin(t * TAU + phase) * 0.15,
@@ -256,15 +265,15 @@ export function scene(k: number, pos: number, w: number, h: number, t: number, r
   return {
     k,
     shift,
-    opacity: reduced ? Math.max(0, 1 - Math.abs(delta)) : Math.abs(delta) < 1.2 ? 1 : 0,
-    glow: { x: cx - heroSize * 1.05 + delta * w * 0.25 * par, y: cy - heroSize * 1.05, size: heroSize * 2.1, color: page.glow },
+    opacity: reduced ? Math.max(0, 1 - Math.abs(delta) * (opts.fade ?? 1)) : Math.abs(delta) < 1.2 ? 1 : 0,
+    glow: { x: cx - heroSize * 1.05 + m * w * 0.25 * par, y: cy - heroSize * 1.05, size: heroSize * 2.1, color: page.glow },
     burst: { x: cx - heroSize * 0.95, y: cy - heroSize * 0.95, size: heroSize * 1.9, rotate: reduced ? 0 : (t * TAU) / 4 },
     ring,
     back,
-    shadow: { x: cx - heroSize * 0.42 + delta * w * 0.15 * par, y: cy + heroSize * 0.48, w: heroSize * 0.84 * (1 - bob / 80), h: heroSize * 0.12 },
+    shadow: { x: cx - heroSize * 0.42 + m * w * 0.15 * par, y: cy + heroSize * 0.48, w: heroSize * 0.84 * (1 - bob / 80), h: heroSize * 0.12 },
     hero: {
       icon: page.hero,
-      x: cx - heroSize / 2 + delta * w * 0.15 * par,
+      x: cx - heroSize / 2 + m * w * 0.15 * par,
       y: cy - heroSize / 2 + bob - 8,
       size: heroSize,
       rotate: reduced ? 0 : Math.sin(t * TAU) * 0.06,
@@ -272,6 +281,49 @@ export function scene(k: number, pos: number, w: number, h: number, t: number, r
     },
     front,
   };
+}
+
+// ---------- wide screens: the white card trades sides ----------
+
+/** The white card is at least 400 px and 1/2.35 (about 43%) of the screen, as in the old two-column split. */
+export const CARD_MIN = 400;
+const CARD_RATIO = 2.35;
+/** While the card sweeps across, the pictures drift a third of their side in the same direction as a drag. */
+export const DRIFT = 0.32;
+
+export interface CardView {
+  width: number;
+  /** Left edge of the card, in px from the left of the screen. */
+  x: number;
+  opacity: number;
+  /** How far the card travels between the sides (= the width the pictures get). */
+  travel: number;
+}
+
+/**
+ * The white card on wide screens: on the right on pages 1 and 3, on the left on page 2, gliding across
+ * as the pages turn (and following a drag). With reduced motion it fades out and comes back on the other side.
+ */
+export function cardAt(pos: number, w: number, reduced = false): CardView {
+  const width = Math.min(w, Math.round(Math.max(CARD_MIN, w / CARD_RATIO)));
+  const travel = w - width;
+  const p = Math.min(PAGES.length - 1, Math.max(0, pos));
+  if (reduced) {
+    const onLeft = Math.round(p) % 2;
+    return { width, travel, x: travel * (1 - onLeft), opacity: Math.min(1, Math.abs(p - Math.floor(p) - 0.5) * 2) };
+  }
+  const leftness = 1 - Math.abs(1 - (p % 2)); // 0 on pages 1 and 3, 1 on page 2
+  return { width, travel, x: travel * (1 - leftness), opacity: 1 };
+}
+
+/** Where page k's pictures sit: beside the card, on the left for pages 1 and 3, on the right for page 2. */
+export function artLeft(k: number, card: CardView): number {
+  return k % 2 ? card.width : 0;
+}
+
+/** Page k's pictures only show on their own side of the card, so the old and new pages never overlap. */
+export function sceneClip(k: number, card: CardView, w: number): string {
+  return k % 2 ? `inset(0 0 0 ${Math.round(card.x + card.width)}px)` : `inset(0 ${Math.round(w - card.x)}px 0 0)`;
 }
 
 // ---------- confetti ----------

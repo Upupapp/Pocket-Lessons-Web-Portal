@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_ICONS, PAGES, WORDS, colorsAt, confetti, dot, mix, rubber, say, scene, settle } from './welcome-motion';
+import { ALL_ICONS, DRIFT, PAGES, WORDS, artLeft, cardAt, colorsAt, confetti, dot, mix, rubber, say, scene, sceneClip, settle } from './welcome-motion';
 
 // The web welcome pages move like the phone's: colours blend, layers slide at different depths.
 describe('welcome pages', () => {
@@ -52,6 +52,37 @@ describe('welcome pages', () => {
     expect(still.shift).toBe(0);
     expect(still.opacity).toBe(0.5);
     expect(still.hero.rotate).toBe(0);
+  });
+
+  it('on wide screens, puts the card right, left, right and glides it across between pages', () => {
+    const w = 1880; // card 800 wide, 1080 for the pictures
+    expect(cardAt(0, w)).toMatchObject({ width: 800, travel: 1080, x: 1080, opacity: 1 });
+    expect(cardAt(1, w).x).toBe(0);
+    expect(cardAt(2, w).x).toBe(1080);
+    expect(cardAt(0.5, w).x).toBe(540); // halfway across
+    expect(cardAt(1.25, w).x).toBe(270); // heading back to the right
+    expect(cardAt(-0.2, w).x).toBe(1080); // a drag past page 1 leaves the card where it is
+    expect(cardAt(0, 700).width).toBe(400); // never narrower than 400 px
+  });
+
+  it('with reduced motion, fades the card out and back on the other side instead of sliding', () => {
+    const w = 1880;
+    expect(cardAt(0.3, w, true)).toMatchObject({ x: 1080, opacity: expect.closeTo(0.4, 5) });
+    expect(cardAt(0.7, w, true)).toMatchObject({ x: 0, opacity: expect.closeTo(0.4, 5) });
+    expect(cardAt(1, w, true)).toMatchObject({ x: 0, opacity: 1 });
+  });
+
+  it('keeps each page’s pictures on their own side of the card, drifting a third as far as on the phone', () => {
+    const w = 1880;
+    const c = cardAt(0.5, w);
+    expect(artLeft(0, c)).toBe(0);
+    expect(artLeft(1, c)).toBe(800);
+    expect(sceneClip(0, c, w)).toBe('inset(0 1340px 0 0)'); // page 1 shows left of the card
+    expect(sceneClip(1, c, w)).toBe('inset(0 0 0 1340px)'); // page 2 shows right of it
+    const leaving = scene(0, 0.5, c.travel, 800, 0.25, false, { drift: DRIFT });
+    expect(leaving.shift).toBeCloseTo(-0.5 * DRIFT * c.travel);
+    const fading = scene(0, 0.25, c.travel, 800, 0.25, true, { drift: DRIFT, fade: 2 });
+    expect(fading.opacity).toBe(0.5);
   });
 
   it('draws the same confetti every time', () => {

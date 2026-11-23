@@ -2,15 +2,38 @@ import { Component, DestroyRef, ElementRef, HostListener, afterNextRender, compu
 import { Router } from '@angular/router';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
-import { ALL_ICONS, Lang, PAGES, SUNBURST_PATH, WORDS, colorsAt, confetti, dot, easeInOutCubic, rubber, say, scene, settle } from './welcome-motion';
+import {
+  ALL_ICONS,
+  DRIFT,
+  Lang,
+  PAGES,
+  SUNBURST_PATH,
+  WORDS,
+  artLeft,
+  cardAt,
+  colorsAt,
+  confetti,
+  dot,
+  easeInOutCubic,
+  rubber,
+  say,
+  scene,
+  sceneClip,
+  settle,
+} from './welcome-motion';
 
 const LOOP_MS = 8000;
 const PAGE_MS = 520;
+/** On wide screens the card crosses more than half the screen, so a page turn takes a little longer. */
+const PAGE_MS_WIDE = 640;
+const WIDE = '(min-width: 900px)';
 
 /**
  * W1–W3 Welcome pages, the same as the mobile app's: soft sun, sky and mint pages with floating 3D
  * pictures, a white card with a wave edge, and the same motion when moving between pages
  * (colours blend, layers slide at different depths, dots stretch, the round button fills, then opens).
+ * The web's own twist on wide screens: the card trades sides each page (right, left, right), gliding
+ * across while the old pictures slip under it and the new ones appear on the side it uncovers.
  */
 @Component({
   selector: 'pl-welcome',
@@ -54,82 +77,94 @@ const PAGE_MS = 520;
         </svg>
 
         @for (s of scenes(); track s.k) {
-          <div class="scene" [style.transform]="'translate3d(' + s.shift + 'px,0,0)'" [style.opacity]="s.opacity">
-            <div
-              class="glow"
-              [style.left.px]="s.glow.x"
-              [style.top.px]="s.glow.y"
-              [style.width.px]="s.glow.size"
-              [style.height.px]="s.glow.size"
-              [style.background]="'radial-gradient(circle, ' + s.glow.color + ' 0%, ' + s.glow.color + '8c 55%, ' + s.glow.color + '00 100%)'"
-            ></div>
-            <svg class="burst" viewBox="0 0 100 100" [style.left.px]="s.burst.x" [style.top.px]="s.burst.y" [style.width.px]="s.burst.size" [style.height.px]="s.burst.size" [style.transform]="'rotate(' + s.burst.rotate + 'rad)'">
-              <path [attr.d]="sunburst" fill="#fff" />
-            </svg>
-            @if (s.ring; as r) {
-              <svg class="ring" [attr.viewBox]="'0 0 ' + r.w + ' ' + r.h" [style.left.px]="r.x" [style.top.px]="r.y" [style.width.px]="r.w" [style.height.px]="r.h">
-                <ellipse [attr.cx]="r.w / 2" [attr.cy]="r.h / 2" [attr.rx]="r.w / 2 - 2" [attr.ry]="r.h / 2 - 2" fill="none" [attr.stroke]="r.color" stroke-width="3" stroke-dasharray="9 9" />
+          <!-- Each page's pictures show only on their side of the card. -->
+          <div class="clip" [style.clip-path]="s.clip">
+            <div class="scene" [style.transform]="'translate3d(' + (s.left + s.shift) + 'px,0,0)'" [style.opacity]="s.opacity">
+              <div
+                class="glow"
+                [style.left.px]="s.glow.x"
+                [style.top.px]="s.glow.y"
+                [style.width.px]="s.glow.size"
+                [style.height.px]="s.glow.size"
+                [style.background]="'radial-gradient(circle, ' + s.glow.color + ' 0%, ' + s.glow.color + '8c 55%, ' + s.glow.color + '00 100%)'"
+              ></div>
+              <svg class="burst" viewBox="0 0 100 100" [style.left.px]="s.burst.x" [style.top.px]="s.burst.y" [style.width.px]="s.burst.size" [style.height.px]="s.burst.size" [style.transform]="'rotate(' + s.burst.rotate + 'rad)'">
+                <path [attr.d]="sunburst" fill="#fff" />
               </svg>
-            }
-            @for (f of s.back; track $index) {
-              <img class="pic" [src]="'icons3d/' + f.icon + '.webp'" alt="" draggable="false" [style.width.px]="f.size" [style.height.px]="f.size" [style.opacity]="f.opacity" [style.transform]="'translate3d(' + f.x + 'px,' + f.y + 'px,0) rotate(' + f.rotate + 'rad)'" />
-            }
-            <div class="shadow" [style.left.px]="s.shadow.x" [style.top.px]="s.shadow.y" [style.width.px]="s.shadow.w" [style.height.px]="s.shadow.h"></div>
-            <img class="pic hero" [src]="'icons3d/' + s.hero.icon + '.webp'" alt="" draggable="false" [style.width.px]="s.hero.size" [style.height.px]="s.hero.size" [style.transform]="'translate3d(' + s.hero.x + 'px,' + s.hero.y + 'px,0) rotate(' + s.hero.rotate + 'rad)'" />
+              @if (s.ring; as r) {
+                <svg class="ring" [attr.viewBox]="'0 0 ' + r.w + ' ' + r.h" [style.left.px]="r.x" [style.top.px]="r.y" [style.width.px]="r.w" [style.height.px]="r.h">
+                  <ellipse [attr.cx]="r.w / 2" [attr.cy]="r.h / 2" [attr.rx]="r.w / 2 - 2" [attr.ry]="r.h / 2 - 2" fill="none" [attr.stroke]="r.color" stroke-width="3" stroke-dasharray="9 9" />
+                </svg>
+              }
+              @for (f of s.back; track $index) {
+                <img class="pic" [src]="'icons3d/' + f.icon + '.webp'" alt="" draggable="false" [style.width.px]="f.size" [style.height.px]="f.size" [style.opacity]="f.opacity" [style.transform]="'translate3d(' + f.x + 'px,' + f.y + 'px,0) rotate(' + f.rotate + 'rad)'" />
+              }
+              <div class="shadow" [style.left.px]="s.shadow.x" [style.top.px]="s.shadow.y" [style.width.px]="s.shadow.w" [style.height.px]="s.shadow.h"></div>
+              <img class="pic hero" [src]="'icons3d/' + s.hero.icon + '.webp'" alt="" draggable="false" [style.width.px]="s.hero.size" [style.height.px]="s.hero.size" [style.transform]="'translate3d(' + s.hero.x + 'px,' + s.hero.y + 'px,0) rotate(' + s.hero.rotate + 'rad)'" />
+            </div>
           </div>
         }
       </section>
 
-      <section class="card">
-        <svg class="wave side" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true"><path d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" /></svg>
+      <!-- On wide screens the card trades sides each page (right, left, right) and glides across between them. -->
+      <section
+        class="card"
+        [style.width.px]="wide() ? card().width : null"
+        [style.transform]="wide() ? 'translate3d(' + card().x + 'px,0,0)' : null"
+        [style.opacity]="wide() && card().opacity < 1 ? card().opacity : null"
+      >
+        <svg class="wave side l" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true"><path d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" /></svg>
+        <svg class="wave side r" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true"><path d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" /></svg>
         <svg class="wave top" viewBox="0 -6 100 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0,26 C22,-6 42,40 62,18 C78,0 90,6 100,22 L100,40 L0,40 Z" /></svg>
 
-        <div class="dots-row">
-          <div class="dots">
-            @for (d of dots(); track $index) {
-              <button
-                type="button"
-                class="dot"
-                [style.width.px]="d.width"
-                [style.background]="d.color"
-                [attr.aria-label]="t(words.page) + ' ' + ($index + 1) + ' ' + t(words.of) + ' ' + pages.length"
-                [attr.aria-current]="$index === page() ? 'step' : null"
-                (click)="goTo($index)"
-              ></button>
+        <div class="card-in">
+          <div class="dots-row">
+            <div class="dots">
+              @for (d of dots(); track $index) {
+                <button
+                  type="button"
+                  class="dot"
+                  [style.width.px]="d.width"
+                  [style.background]="d.color"
+                  [attr.aria-label]="t(words.page) + ' ' + ($index + 1) + ' ' + t(words.of) + ' ' + pages.length"
+                  [attr.aria-current]="$index === page() ? 'step' : null"
+                  (click)="goTo($index)"
+                ></button>
+              }
+            </div>
+            <span class="count">{{ page() + 1 }} / {{ pages.length }}</span>
+          </div>
+
+          <div class="say" aria-live="polite">
+            @if (leavingText(); as old) {
+              <div class="text out" aria-hidden="true">
+                <p class="h1">{{ say(pages[old.page].title, old.lang) }}</p>
+                <p>{{ say(pages[old.page].body, old.lang) }}</p>
+              </div>
+            }
+            @for (key of [textKey()]; track key) {
+              <div class="text">
+                <h1>{{ t(pages[page()].title) }}</h1>
+                <p>{{ t(pages[page()].body) }}</p>
+              </div>
             }
           </div>
-          <span class="count">{{ page() + 1 }} / {{ pages.length }}</span>
-        </div>
 
-        <div class="say" aria-live="polite">
-          @if (leavingText(); as old) {
-            <div class="text out" aria-hidden="true">
-              <p class="h1">{{ say(pages[old.page].title, old.lang) }}</p>
-              <p>{{ say(pages[old.page].body, old.lang) }}</p>
-            </div>
-          }
-          @for (key of [textKey()]; track key) {
-            <div class="text">
-              <h1>{{ t(pages[page()].title) }}</h1>
-              <p>{{ t(pages[page()].body) }}</p>
-            </div>
-          }
-        </div>
-
-        <div class="go">
-          <button type="button" class="next" [class.last]="last()" (click)="next()" [attr.aria-label]="last() ? t(words.start) : t(words.next)">
-            @if (!last()) {
-              <svg class="progress" viewBox="0 0 64 64" aria-hidden="true">
-                <circle cx="32" cy="32" r="28" class="track" />
-                <circle cx="32" cy="32" r="28" class="fill" [attr.stroke-dasharray]="progress()" transform="rotate(-90 32 32)" />
+          <div class="go">
+            <button type="button" class="next" [class.last]="last()" (click)="next()" [attr.aria-label]="last() ? t(words.start) : t(words.next)">
+              @if (!last()) {
+                <svg class="progress" viewBox="0 0 64 64" aria-hidden="true">
+                  <circle cx="32" cy="32" r="28" class="track" />
+                  <circle cx="32" cy="32" r="28" class="fill" [attr.stroke-dasharray]="progress()" transform="rotate(-90 32 32)" />
+                </svg>
+              } @else {
+                <span class="label">{{ t(words.start) }}</span>
+              }
+              <svg class="arrow" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
-            } @else {
-              <span class="label">{{ t(words.start) }}</span>
-            }
-            <svg class="arrow" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
+            </button>
+          </div>
         </div>
       </section>
     </main>
@@ -138,7 +173,6 @@ const PAGE_MS = 520;
     :host { display: block; }
     .welcome {
       position: relative; min-height: 100vh; min-height: 100dvh; overflow: hidden; color: #163C3B;
-      display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(400px, 1fr);
       transition: opacity .38s ease, transform .38s ease;
     }
     .welcome.leaving { opacity: 0; transform: translateY(-1.5%); }
@@ -156,9 +190,11 @@ const PAGE_MS = 520;
     .lang button.on { background: #146B60; color: #fff; }
     .lang button:focus-visible, .dot:focus-visible { outline: 3px solid #163C3B; outline-offset: 2px; }
 
-    .stage { position: relative; z-index: 1; overflow: hidden; min-height: 100%; touch-action: pan-y; cursor: grab; user-select: none; }
+    /* Wide screens: the pictures fill the screen and the white card lies on top, on one side or the other. */
+    .stage { position: absolute; inset: 0; z-index: 1; overflow: hidden; touch-action: pan-y; cursor: grab; user-select: none; }
     .stage:active { cursor: grabbing; }
     .confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .clip { position: absolute; inset: 0; }
     .scene { position: absolute; inset: 0; will-change: transform; }
     .glow, .burst, .ring, .shadow { position: absolute; pointer-events: none; }
     .glow { border-radius: 50%; }
@@ -167,12 +203,20 @@ const PAGE_MS = 520;
     .shadow { border-radius: 50%; background: rgba(0, 0, 0, .18); filter: blur(12px); }
     .pic { position: absolute; left: 0; top: 0; pointer-events: none; -webkit-user-drag: none; }
 
+    /* Not the portal's boxed .card: a full-height sheet with no border, corners or shadow, so the seams stay clean. */
     .card {
-      position: relative; z-index: 3; background: #fff; display: flex; flex-direction: column; justify-content: center; gap: 18px;
+      position: absolute; z-index: 3; top: 0; bottom: 0; left: 0; will-change: transform;
+      background: #fff; padding: 0; border: 0; border-radius: 0; box-shadow: none;
+    }
+    .card-in {
+      height: 100%; overflow-y: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 18px;
       padding: 104px clamp(28px, 4vw, 64px) 56px;
     }
     .wave { position: absolute; fill: #fff; pointer-events: none; overflow: visible; }
-    .wave.side { left: -45px; top: 0; width: 46px; height: 100%; }
+    /* A wave on both edges: the one facing the pictures shows, the other is off screen (both show mid-glide). */
+    .wave.side { top: 0; width: 46px; height: 100%; }
+    .wave.side.l { left: -45px; }
+    .wave.side.r { right: -45px; transform: rotate(180deg); }
     .wave.top { display: none; }
     .dots-row { display: flex; align-items: center; gap: 12px; }
     .dots { display: flex; gap: 6px; align-items: center; }
@@ -201,11 +245,13 @@ const PAGE_MS = 520;
     @keyframes text-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
     @keyframes text-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-12px); } }
 
+    /* Phones and narrow windows: pictures on top, words below, like the mobile app (no trading sides). */
     @media (max-width: 899px) {
       .welcome { display: flex; flex-direction: column; }
       .bar { position: relative; padding: 12px 16px 0; }
-      .stage { flex: 1 1 auto; min-height: 340px; }
-      .card { justify-content: flex-start; gap: 14px; padding: 36px 24px 24px; }
+      .stage { position: relative; inset: auto; flex: 1 1 auto; min-height: 340px; }
+      .card { position: relative; top: auto; bottom: auto; }
+      .card-in { height: auto; overflow: visible; justify-content: flex-start; gap: 14px; padding: 36px 24px 24px; }
       .wave.side { display: none; }
       .wave.top { display: block; left: 0; top: -34px; width: 100%; height: 40px; }
       .say { min-height: 8.5em; }
@@ -231,16 +277,31 @@ export class Welcome {
   readonly lang = signal<Lang>(startLanguage());
   readonly pos = signal(indexOf(this.step()));
   readonly loop = signal(0.15);
-  readonly sw = signal(800);
-  readonly sh = signal(700);
+  // Start from the window size so the card is in place on the first frame (the stage is measured after).
+  readonly sw = signal(typeof innerWidth === 'number' ? innerWidth : 800);
+  readonly sh = signal(typeof innerHeight === 'number' ? innerHeight : 700);
   readonly leaving = signal(false);
+  /** Wide screens put the card beside the pictures and let it trade sides; narrow ones stack them like the phone. */
+  readonly wide = signal(typeof matchMedia !== 'undefined' ? matchMedia(WIDE).matches : true);
 
   readonly page = computed(() => Math.min(PAGES.length - 1, Math.max(0, Math.round(this.pos()))));
   readonly last = computed(() => this.page() === PAGES.length - 1);
   readonly colors = computed(() => colorsAt(Math.min(PAGES.length - 1, Math.max(0, this.pos()))));
-  readonly scenes = computed(() =>
-    PAGES.map((_, k) => scene(k, this.pos(), this.sw(), this.sh(), this.loop(), this.reduced)).filter((s) => (this.reduced ? s.opacity > 0.01 : Math.abs(s.k - this.pos()) < 1.15)),
-  );
+  readonly card = computed(() => cardAt(this.pos(), this.sw(), this.reduced));
+  readonly scenes = computed(() => {
+    const pos = this.pos();
+    const wide = this.wide();
+    const c = this.card();
+    return PAGES.map((_, k) =>
+      wide
+        ? {
+            ...scene(k, pos, c.travel, this.sh(), this.loop(), this.reduced, { drift: DRIFT, fade: 2 }),
+            left: artLeft(k, c),
+            clip: sceneClip(k, c, this.sw()),
+          }
+        : { ...scene(k, pos, this.sw(), this.sh(), this.loop(), this.reduced), left: 0, clip: 'none' },
+    ).filter((s) => (this.reduced ? s.opacity > 0.01 : Math.abs(s.k - pos) < 1.15));
+  });
   readonly bits = computed(() => confetti(this.reduced ? 0.3 : this.loop(), this.sw(), this.sh()));
   readonly dots = computed(() => PAGES.map((_, d) => dot(d, this.pos(), this.colors().accent)));
   readonly progress = computed(() => {
@@ -265,6 +326,12 @@ export class Welcome {
     for (const icon of ALL_ICONS) {
       const img = new Image();
       img.src = `icons3d/${icon}.webp`;
+    }
+    if (typeof matchMedia !== 'undefined') {
+      const mq = matchMedia(WIDE);
+      const onChange = () => this.wide.set(mq.matches);
+      mq.addEventListener('change', onChange);
+      destroy.onDestroy(() => mq.removeEventListener('change', onChange));
     }
     afterNextRender(() => {
       const el = this.stage()?.nativeElement;
@@ -337,7 +404,7 @@ export class Welcome {
     const to = Math.min(PAGES.length - 1, Math.max(0, i));
     const from = this.pos();
     if (Math.abs(to - from) < 0.001) return;
-    const dur = this.reduced ? 220 : Math.max(240, PAGE_MS * Math.min(1.4, Math.abs(to - from)));
+    const dur = this.reduced ? 220 : Math.max(240, (this.wide() ? PAGE_MS_WIDE : PAGE_MS) * Math.min(1.4, Math.abs(to - from)));
     this.tween = { from, to, start: performance.now(), dur };
   }
 
@@ -378,10 +445,16 @@ export class Welcome {
     const dx = e.clientX - d.x0;
     if (Math.abs(dx) > 4) d.moved = true;
     const dt = Math.max(1, e.timeStamp - d.lastT);
-    d.v = 0.7 * d.v + 0.3 * (((e.clientX - d.lastX) / this.sw()) * (1000 / dt));
+    const span = this.span();
+    d.v = 0.7 * d.v + 0.3 * (((e.clientX - d.lastX) / span) * (1000 / dt));
     d.lastX = e.clientX;
     d.lastT = e.timeStamp;
-    this.pos.set(rubber(d.pos0 - dx / this.sw()));
+    this.pos.set(rubber(d.pos0 - dx / span));
+  }
+
+  /** How far a drag goes for one page: the card's trip across on wide screens, the picture's width when stacked. */
+  private span(): number {
+    return Math.max(280, this.wide() ? this.card().travel : this.sw());
   }
 
   up(e: PointerEvent): void {
