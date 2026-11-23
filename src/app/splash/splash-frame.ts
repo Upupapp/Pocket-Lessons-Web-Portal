@@ -5,8 +5,8 @@
 
 /** The web twist: teacher and admin things circle the logo (the phone shows children's things). */
 export const ORBIT = ['laptop', 'school', 'memo', 'globe', 'books', 'phone', 'open-book', 'star'];
-/** The yellow line under the tagline (the phone says "Kahit Walang Signal"). */
-export const EXTRA = 'Konektado sa Bawat Sentro';
+/** The yellow line under the tagline, the same as the phone's. */
+export const EXTRA = 'Kahit Walang Signal';
 
 export const TOTAL_MS = 6000;
 const BASE_MS = 3600;

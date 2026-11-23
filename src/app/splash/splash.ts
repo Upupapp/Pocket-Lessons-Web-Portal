@@ -69,7 +69,7 @@ const CONFETTI = Array.from({ length: 22 }, (_, i) => ({
         }
       </div>
 
-      <div class="word" role="img" aria-label="Pocket Lessons – Tuloy Ang Aral. Konektado sa Bawat Sentro."
+      <div class="word" role="img" aria-label="Pocket Lessons – Tuloy Ang Aral. Kahit Walang Signal."
         [style.left.px]="g().wordLeft" [style.top.px]="g().wordTop" [style.width.px]="g().wordW" [style.height.px]="g().wordH">
         @if (f().wordShow) {
           @for (l of f().letters; track $index) {
