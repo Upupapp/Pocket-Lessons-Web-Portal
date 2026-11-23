@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { AdminService } from '../core/admin.service';
 import { apiMode } from '../core/api';
 import { AuthService } from '../core/auth.service';
+import { Processing } from '../core/processing';
 import { Logo } from '../shared/logo';
 
 interface NavItem {
@@ -51,7 +52,7 @@ const NAV: NavItem[] = [
             <span>Administrator · {{ auth.user()?.center }}</span>
           </div>
         </div>
-        <button type="button" class="out" (click)="signOut()">Sign out</button>
+        <button type="button" class="out" (click)="signOut($event)">Sign out</button>
       </aside>
 
       <div class="main">
@@ -142,6 +143,7 @@ export class AdminShell {
   readonly auth = inject(AuthService);
   readonly admin = inject(AdminService);
   private readonly router = inject(Router);
+  private readonly processing = inject(Processing);
   readonly nav = NAV;
   readonly apiMode = apiMode;
   readonly menuOpen = signal(false);
@@ -157,8 +159,16 @@ export class AdminShell {
     void this.admin.refreshBadge();
   }
 
-  signOut(): void {
-    this.auth.signOut();
-    void this.router.navigateByUrl('/sign-in');
+  async signOut(event: Event): Promise<void> {
+    await this.processing.run({
+      title: 'Signing you out',
+      detail: this.auth.user()?.name,
+      from: event,
+      run: () => {
+        this.auth.signOut();
+        return this.router.navigateByUrl('/sign-in');
+      },
+      done: { title: 'Signed out', detail: 'See you next time. Tuloy ang aral!' },
+    });
   }
 }

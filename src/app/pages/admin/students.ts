@@ -4,6 +4,7 @@ import { ActivatedRoute } from '@angular/router';
 import { AdminCenter, AdminClass, AdminStudent } from '../../core/admin-models';
 import { KidAvatar } from '../../shared/kid-avatar';
 import { AdminService, adminError } from '../../core/admin.service';
+import { Processing } from '../../core/processing';
 
 /** A-16 Students in every center: move to another class, mark as left (records are kept). */
 @Component({
@@ -62,9 +63,9 @@ import { AdminService, adminError } from '../../core/admin.service';
                 <td>
                   <div class="adm-actions">
                     @if (s.left) {
-                      <button type="button" class="btn btn-ghost btn-sm" (click)="setLeft(s, false)" [disabled]="busy()">Back in the program</button>
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="setLeft(s, false, $event)" [disabled]="busy()">Back in the program</button>
                     } @else {
-                      <button type="button" class="btn btn-ghost btn-sm" (click)="setLeft(s, true)" [disabled]="busy()">Mark as left</button>
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="setLeft(s, true, $event)" [disabled]="busy()">Mark as left</button>
                     }
                   </div>
                 </td>
@@ -87,6 +88,7 @@ import { AdminService, adminError } from '../../core/admin.service';
 })
 export class AdminStudentsPage {
   private readonly admin = inject(AdminService);
+  private readonly processing = inject(Processing);
   readonly centers = signal<AdminCenter[]>([]);
   readonly classes = signal<AdminClass[]>([]);
   readonly students = signal<AdminStudent[]>([]);
@@ -135,24 +137,32 @@ export class AdminStudentsPage {
 
   async move(s: AdminStudent, classId: string | null): Promise<void> {
     if (classId === s.classId) return;
-    await this.patch(s, { classId });
+    const to = this.classes().find((c) => c.id === classId)?.name ?? 'no class';
+    await this.patch(s, { classId }, `Moving ${s.name}`, `Now in ${to}`);
   }
 
-  async setLeft(s: AdminStudent, left: boolean): Promise<void> {
+  async setLeft(s: AdminStudent, left: boolean, event?: Event): Promise<void> {
     if (left && !confirm(`Mark ${s.name} as left the program? Their reading checks and history are kept.`)) return;
-    await this.patch(s, { left });
+    await this.patch(s, { left }, left ? `Marking ${s.name} as left` : `Bringing ${s.name} back`, left ? 'Marked as left' : 'Back in the program', event);
   }
 
-  private async patch(s: AdminStudent, patch: { classId?: string | null; left?: boolean }): Promise<void> {
+  /** Small changes: the loader only shows if the server takes a moment. */
+  private async patch(s: AdminStudent, patch: { classId?: string | null; left?: boolean }, title: string, doneTitle: string, event?: Event): Promise<void> {
     this.busy.set(true);
     this.error.set('');
-    try {
-      const updated = await this.admin.updateStudent(s.id, patch);
-      this.students.update((list) => list.map((x) => (x.id === s.id ? updated : x)));
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title,
+      detail: s.center,
+      from: event,
+      quick: true,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.updateStudent(s.id, patch);
+        this.students.update((list) => list.map((x) => (x.id === s.id ? updated : x)));
+      },
+      done: { title: doneTitle, detail: s.name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 }

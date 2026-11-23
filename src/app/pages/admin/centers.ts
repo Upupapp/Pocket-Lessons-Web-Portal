@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AdminCenter } from '../../core/admin-models';
 import { AdminService, adminError } from '../../core/admin.service';
+import { Processing } from '../../core/processing';
 import { CopyButton } from '../../shared/copy-button';
 
 /** A-03/A-04 Centers and each center's teacher invitation code (copy, new code, turn on or off). */
@@ -21,7 +22,7 @@ import { CopyButton } from '../../shared/copy-button';
     @if (error()) { <p class="adm-msg" role="alert">{{ error() }}</p> }
 
     @if (adding()) {
-      <form class="card adm-gap" (ngSubmit)="add()">
+      <form class="card adm-gap" (ngSubmit)="add($event)">
         <h2 class="adm-card-title">Add a center</h2>
         <div class="row">
           <label class="field grow"><span>Center name</span><input class="input" name="n" [(ngModel)]="newName" placeholder="e.g. Better World Navotas" maxlength="120" /></label>
@@ -50,11 +51,11 @@ import { CopyButton } from '../../shared/copy-button';
             <p class="hint">{{ c.invitationActive ? 'Share it with new teachers at this center.' : 'Joining with this code is turned off. Send teachers a setup link instead.' }}</p>
             <div class="actions">
               <pl-copy [text]="c.invitationCode" what="invitation code" />
-              <button type="button" class="btn btn-ghost btn-sm" (click)="invitation(c, 'new')" [disabled]="busy()">New code</button>
+              <button type="button" class="btn btn-ghost btn-sm" (click)="invitation(c, 'new', $event)" [disabled]="busy()">New code</button>
               @if (c.invitationActive) {
-                <button type="button" class="btn btn-danger btn-sm" (click)="invitation(c, 'off')" [disabled]="busy()">Turn off</button>
+                <button type="button" class="btn btn-danger btn-sm" (click)="invitation(c, 'off', $event)" [disabled]="busy()">Turn off</button>
               } @else {
-                <button type="button" class="btn btn-primary btn-sm" (click)="invitation(c, 'on')" [disabled]="busy()">Turn on</button>
+                <button type="button" class="btn btn-primary btn-sm" (click)="invitation(c, 'on', $event)" [disabled]="busy()">Turn on</button>
               }
             </div>
           </div>
@@ -83,6 +84,7 @@ import { CopyButton } from '../../shared/copy-button';
 })
 export class AdminCentersPage {
   private readonly admin = inject(AdminService);
+  private readonly processing = inject(Processing);
   readonly centers = signal<AdminCenter[]>([]);
   readonly error = signal('');
   readonly busy = signal(false);
@@ -101,34 +103,53 @@ export class AdminCentersPage {
     }
   }
 
-  async add(): Promise<void> {
+  async add(event?: Event): Promise<void> {
     this.error.set('');
-    if (this.newName.trim().length < 2) return this.error.set('Enter the center name.');
+    const name = this.newName.trim();
+    if (name.length < 2) return this.error.set('Enter the center name.');
     this.busy.set(true);
-    try {
-      await this.admin.createCenter(this.newName.trim());
-      this.newName = '';
-      this.adding.set(false);
-      await this.load();
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    let made = false;
+    const r = await this.processing.run({
+      title: `Adding ${name}`,
+      detail: 'And making its teacher invitation code',
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        if (!made) await this.admin.createCenter(name);
+        made = true;
+        await this.load();
+      },
+      done: () => ({ title: 'Center added', detail: `${name} · invitation code ${this.centers().find((c) => c.name === name)?.invitationCode ?? 'ready'}` }),
+    });
+    this.busy.set(false);
+    if (!r.ok) return this.error.set(r.error);
+    this.newName = '';
+    this.adding.set(false);
   }
 
-  async invitation(c: AdminCenter, action: 'new' | 'on' | 'off'): Promise<void> {
+  async invitation(c: AdminCenter, action: 'new' | 'on' | 'off', event?: Event): Promise<void> {
     if (action === 'new' && !confirm(`Make a new invitation code for ${c.name}? The old code ${c.invitationCode} will stop working.`)) return;
     if (action === 'off' && !confirm(`Turn off joining with the code at ${c.name}? New teachers will need a setup link from you.`)) return;
     this.busy.set(true);
     this.error.set('');
-    try {
-      const updated = await this.admin.setInvitation(c.id, action);
-      this.centers.update((list) => list.map((x) => (x.id === c.id ? updated : x)));
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    let updated: AdminCenter | undefined;
+    const r = await this.processing.run({
+      title: action === 'new' ? 'Making a new invitation code' : action === 'on' ? 'Turning joining on' : 'Turning joining off',
+      detail: c.name,
+      from: event,
+      // Turning the code on or off is a small change; a new code is worth showing.
+      quick: action !== 'new',
+      errorText: adminError,
+      run: async () => {
+        updated = await this.admin.setInvitation(c.id, action);
+        this.centers.update((list) => list.map((x) => (x.id === c.id ? updated! : x)));
+      },
+      done: () =>
+        action === 'new'
+          ? { title: 'New invitation code', detail: `${c.name}: ${updated?.invitationCode ?? ''}` }
+          : { title: action === 'on' ? 'Joining turned on' : 'Joining turned off', detail: c.name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 }

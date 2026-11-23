@@ -4,6 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AdminCenter, AdminClass, AdminStaff } from '../../core/admin-models';
 import { AdminService, adminError } from '../../core/admin.service';
 import { LEVELS, uid } from '../../core/models';
+import { Processing } from '../../core/processing';
 
 /** A-07 Classes per center, each with a teacher from the same center. */
 @Component({
@@ -21,7 +22,7 @@ import { LEVELS, uid } from '../../core/models';
     @if (error()) { <p class="adm-msg" role="alert">{{ error() }}</p> }
 
     @if (editing()) {
-      <form class="card adm-gap" (ngSubmit)="save()">
+      <form class="card adm-gap" (ngSubmit)="save($event)">
         <h2 class="adm-card-title">{{ editId ? 'Change the class' : 'New class' }}</h2>
         <div class="adm-form-grid">
           <label class="field"><span>Center</span>
@@ -72,7 +73,7 @@ import { LEVELS, uid } from '../../core/models';
                 <td>
                   <div class="adm-actions">
                     <button type="button" class="btn btn-ghost btn-sm" (click)="edit(c)">Change</button>
-                    <button type="button" class="btn btn-danger btn-sm" (click)="remove(c)" [disabled]="busy()">Remove</button>
+                    <button type="button" class="btn btn-danger btn-sm" (click)="remove(c, $event)" [disabled]="busy()">Remove</button>
                   </div>
                 </td>
               </tr>
@@ -88,6 +89,7 @@ import { LEVELS, uid } from '../../core/models';
 })
 export class AdminClassesPage {
   private readonly admin = inject(AdminService);
+  private readonly processing = inject(Processing);
   readonly levels = LEVELS;
   readonly centers = signal<AdminCenter[]>([]);
   readonly classes = signal<AdminClass[]>([]);
@@ -145,31 +147,44 @@ export class AdminClassesPage {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async save(): Promise<void> {
+  async save(event?: Event): Promise<void> {
     this.error.set('');
     if (!this.form.centerId || !this.form.name.trim() || !this.form.program.trim()) return this.error.set('Fill in the center, class name and program.');
+    const id = this.editId || uid('cls');
+    const name = this.form.name.trim();
+    const isNew = !this.editId;
     this.busy.set(true);
-    try {
-      await this.admin.saveClass(this.editId || uid('cls'), { ...this.form });
-      this.editing.set(false);
-      this.classes.set(await this.admin.classes());
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: isNew ? `Adding ${name}` : `Saving ${name}`,
+      detail: this.centers().find((c) => c.id === this.form.centerId)?.name,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        await this.admin.saveClass(id, { ...this.form });
+        this.classes.set(await this.admin.classes());
+      },
+      done: { title: isNew ? 'Class added' : 'Class saved', detail: name },
+    });
+    this.busy.set(false);
+    if (!r.ok) return this.error.set(r.error);
+    this.editing.set(false);
   }
 
-  async remove(c: AdminClass): Promise<void> {
+  async remove(c: AdminClass, event?: Event): Promise<void> {
     if (!confirm(`Remove ${c.name} (${c.center})? Its ${c.children} children stay in the program without a class.`)) return;
     this.busy.set(true);
-    try {
-      await this.admin.deleteClass(c.id);
-      this.classes.update((list) => list.filter((x) => x.id !== c.id));
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: `Removing ${c.name}`,
+      detail: `${c.center} · the children stay in the program`,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        await this.admin.deleteClass(c.id);
+        this.classes.update((list) => list.filter((x) => x.id !== c.id));
+      },
+      done: { title: 'Class removed', detail: c.name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 }

@@ -52,8 +52,6 @@
     </div>
   </div>
 
-  @if (toast()) { <div class="toast" role="status">{{ toast() }}</div> }
-
   @if (isCheckpoint()) {
     <div class="cp-banner">
       <svg width="36" height="36" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z" fill="#C99B2E" /></svg>
@@ -282,11 +280,11 @@
 
       <div class="actions">
         <button type="button" class="btn btn-ghost" (click)="previewOpen.set(true)" [disabled]="!l.pages.length">Preview as the child</button>
-        <button type="button" class="btn btn-primary" (click)="publish()" [disabled]="!ready() || l.status === 'published'">
+        <button type="button" class="btn btn-primary" (click)="publish($event)" [disabled]="!ready() || l.status === 'published'">
           {{ l.status === 'published' ? 'Published' : l.publishedAt ? 'Publish version ' + (l.version + 1) : 'Publish lesson' }}
         </button>
         @if (!ready()) { <p class="small muted center">Finish the pack check to publish.</p> }
-        <button type="button" class="btn btn-danger btn-sm" (click)="deleteLesson()">Delete lesson</button>
+        <button type="button" class="btn btn-danger btn-sm" (click)="deleteLesson($event)">Delete lesson</button>
       </div>
     </aside>
   </div>

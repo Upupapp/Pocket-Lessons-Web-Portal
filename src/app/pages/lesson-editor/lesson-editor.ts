@@ -16,8 +16,10 @@ import {
   PACK_LIMIT_BYTES,
   PASS_MARK,
   formatBytes,
+  plural,
   uid,
 } from '../../core/models';
+import { Processing } from '../../core/processing';
 import { media } from '../../core/storage';
 import { MediaImage } from '../../shared/media-image';
 import { shrinkPicture } from '../../shared/picture';
@@ -34,6 +36,7 @@ import { SUBJECTS, SubjectKey, isSubject, subjectOf } from '../../core/subjects'
 export class LessonEditor {
   private readonly data = inject(DataService);
   private readonly router = inject(Router);
+  private readonly processing = inject(Processing);
 
   readonly id = input.required<string>();
   readonly levels = LEVELS;
@@ -54,7 +57,6 @@ export class LessonEditor {
     if (s === 'saving' || (s === 'saved' && this.data.syncing())) return 'Saving…';
     return s === 'saved' ? (apiMode ? 'Saved' : 'Saved in this browser') : '';
   });
-  readonly toast = signal('');
   readonly previewOpen = signal(false);
   readonly pictureError = signal('');
 
@@ -129,8 +131,18 @@ export class LessonEditor {
     const current = this.lesson();
     if (!current || !isSubject(key)) return;
     this.lesson.set({ ...current, subject: key as SubjectKey });
-    if (current.unitId && this.unit()) this.data.setUnitSubject(current.unitId, key as SubjectKey);
-    this.scheduleSave();
+    const inUnit = !!current.unitId && !!this.unit();
+    if (inUnit) this.data.setUnitSubject(current.unitId!, key as SubjectKey);
+    this.flush();
+    const world = subjectOf(key);
+    // A quick save: the loader only shows if the server takes a moment.
+    void this.processing.run({
+      title: `Moving to the ${world.childEn} world`,
+      detail: inUnit ? `All ${plural(this.path().length, 'lesson')} in this unit` : current.title || 'This lesson',
+      quick: true,
+      run: () => this.data.flush(),
+      done: { title: `Now in the ${world.childEn} world`, detail: world.world },
+    });
   }
 
   patch(changes: Partial<Lesson>): void {
@@ -179,18 +191,25 @@ export class LessonEditor {
     (event.target as HTMLInputElement).value = '';
     if (!file) return;
     this.pictureError.set('');
-    try {
-      const blob = await shrinkPicture(file);
-      const id = uid('img');
-      await media.put(id, blob);
-      const old = this.lesson()!.pages[index].pictureId;
-      if (old) await media.delete(old).catch(() => undefined);
-      this.patchPage(index, { pictureId: id, pictureBytes: blob.size });
-    } catch (err) {
-      this.pictureError.set(
+    // A quick save: the loader only shows if shrinking or storing the picture takes a moment.
+    const r = await this.processing.run({
+      title: 'Adding the picture',
+      detail: `Page ${index + 1} · ${file.name}`,
+      from: (event.target as HTMLElement).closest('label'),
+      quick: true,
+      errors: 'inline',
+      run: async () => {
+        const blob = await shrinkPicture(file);
+        const id = uid('img');
+        await media.put(id, blob);
+        const old = this.lesson()!.pages[index].pictureId;
+        if (old) await media.delete(old).catch(() => undefined);
+        this.patchPage(index, { pictureId: id, pictureBytes: blob.size });
+      },
+      errorText: (err) =>
         err instanceof ApiError ? `The picture was not saved. ${err.message}` : 'That file could not be used as a picture. Try a JPG or PNG.',
-      );
-    }
+    });
+    if (!r.ok) this.pictureError.set(r.error);
   }
 
   async removePicture(index: number): Promise<void> {
@@ -275,22 +294,61 @@ export class LessonEditor {
 
   // ---------- Save and publish ----------
 
-  publish(): void {
+  /** Publishing behind the loader: checked, packed, saved, then sent to the chosen reading levels. */
+  async publish(event?: Event): Promise<void> {
     if (!this.ready()) return;
     this.flush();
-    const published = this.data.publish(this.lesson()!);
-    this.lesson.set(structuredClone(published));
-    this.flash(`Published version ${published.version}. Families get it at their next hotspot visit or sync.`);
+    const l = this.lesson()!;
+    let published: Lesson | undefined;
+    await this.processing.run({
+      title: 'Publishing the lesson',
+      detail: l.title,
+      from: event,
+      steps: [
+        { label: 'Checking the lesson', detail: `All ${plural(this.checks().length, 'check')} passed` },
+        { label: 'Packing pages, pictures and your voice', detail: `${formatBytes(this.bytes())} of ${formatBytes(PACK_LIMIT_BYTES)} · ${plural(l.pages.length, 'page')}` },
+        {
+          label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser',
+          run: () => {
+            if (!published) {
+              published = this.data.publish(this.lesson()!);
+              this.lesson.set(structuredClone(published));
+            }
+            return this.data.flush();
+          },
+        },
+        { label: 'Sending to reading levels', detail: l.assignedLevels.join(', ') },
+      ],
+      done: () => ({ title: `Published version ${published?.version ?? 1}`, detail: 'Families get it at their next hotspot visit or sync.' }),
+    });
   }
 
-  async deleteLesson(): Promise<void> {
+  async deleteLesson(event?: Event): Promise<void> {
     const l = this.lesson();
     if (!l || !confirm(`Delete "${l.title || 'Untitled lesson'}"? This cannot be undone.`)) return;
     clearTimeout(this.saveTimer);
     this.saveTimer = undefined;
-    if (this.persisted) await this.data.deleteLesson(l.id);
-    else await this.data.deleteMedia(l);
-    void this.router.navigateByUrl('/app/lessons');
+    const name = l.title || 'Untitled lesson';
+    let removed = false;
+    await this.processing.run({
+      title: 'Deleting the lesson',
+      detail: name,
+      from: event,
+      steps: [
+        {
+          label: 'Removing its pages, pictures and recordings',
+          run: async () => {
+            if (removed) return;
+            removed = true;
+            if (this.persisted) await this.data.deleteLesson(l.id);
+            else await this.data.deleteMedia(l);
+          },
+        },
+        { label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser', run: () => this.data.flush() },
+        { label: 'Back to your lessons', run: () => this.router.navigateByUrl('/app/lessons') },
+      ],
+      done: { title: 'Lesson deleted', detail: name },
+    });
   }
 
   private scheduleSave(): void {
@@ -309,10 +367,5 @@ export class LessonEditor {
       this.persisted = true;
       void this.router.navigate(['/app/lessons', l.id], { replaceUrl: true });
     }
-  }
-
-  private flash(message: string): void {
-    this.toast.set(message);
-    setTimeout(() => this.toast.set(''), 5000);
   }
 }

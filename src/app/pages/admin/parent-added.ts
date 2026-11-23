@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 import { AdminStudent, ago, fmtDate } from '../../core/admin-models';
 import { KidAvatar } from '../../shared/kid-avatar';
 import { AdminService, adminError } from '../../core/admin.service';
+import { Processing } from '../../core/processing';
 
 /** A-15 Children added by parents on the phone. Approved automatically; the administrator marks them as seen. */
 @Component({
@@ -49,7 +50,7 @@ import { AdminService, adminError } from '../../core/admin.service';
           </div>
           <div class="adm-actions start">
             @if (!s.reviewed) {
-              <button type="button" class="btn btn-primary btn-sm" (click)="seen(s)" [disabled]="busy()">Mark as seen</button>
+              <button type="button" class="btn btn-primary btn-sm" (click)="seen(s, $event)" [disabled]="busy()">Mark as seen</button>
             }
             <a class="btn btn-ghost btn-sm" routerLink="/admin/students" [queryParams]="{ center: s.centerId }">Put in a class</a>
           </div>
@@ -80,6 +81,7 @@ import { AdminService, adminError } from '../../core/admin.service';
 })
 export class AdminParentAddedPage {
   private readonly admin = inject(AdminService);
+  private readonly processing = inject(Processing);
   readonly fmt = fmtDate;
   readonly ago = ago;
   readonly list = signal<AdminStudent[]>([]);
@@ -108,16 +110,23 @@ export class AdminParentAddedPage {
     );
   }
 
-  async seen(s: AdminStudent): Promise<void> {
+  /** A small change: the loader only shows if the server takes a moment. */
+  async seen(s: AdminStudent, event?: Event): Promise<void> {
     this.busy.set(true);
-    try {
-      const updated = await this.admin.markReviewed(s.id);
-      this.justSeen.update((set) => new Set(set).add(s.id));
-      this.list.update((l) => l.map((x) => (x.id === s.id ? updated : x)));
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: `Marking ${s.name} as seen`,
+      detail: s.center,
+      from: event,
+      quick: true,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.markReviewed(s.id);
+        this.justSeen.update((set) => new Set(set).add(s.id));
+        this.list.update((l) => l.map((x) => (x.id === s.id ? updated : x)));
+      },
+      done: { title: 'Marked as seen', detail: s.name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 }

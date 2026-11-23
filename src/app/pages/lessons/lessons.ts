@@ -5,7 +5,9 @@ import { Router, RouterLink } from '@angular/router';
 import { ImportDraft, ImportDraftData } from '../../core/import-draft';
 import { ImportDialog } from '../../shared/import-dialog';
 import { DataService } from '../../core/data.service';
-import { LEVELS, Lesson, Level, PACK_LIMIT_BYTES, Unit, formatBytes } from '../../core/models';
+import { LEVELS, Lesson, Level, PACK_LIMIT_BYTES, Unit, formatBytes, plural } from '../../core/models';
+import { Processing } from '../../core/processing';
+import { apiMode } from '../../core/api';
 import { SUBJECTS, subjectIcon, subjectOf } from '../../core/subjects';
 
 type Filter = 'all' | 'draft' | 'published';
@@ -58,9 +60,9 @@ type Filter = 'all' | 'draft' | 'published';
                 <p class="small muted">
                   {{ u.unit.level }} · {{ u.unit.language }}@if (u.unit.sourceLabel) { · {{ u.unit.sourceLabel }} }@if (u.unit.author) { · by {{ u.unit.author }} }
                 </p>
-                <p class="small muted">{{ u.lessons.length }} circles · {{ u.recorded }} of {{ u.pages }} pages recorded · {{ u.published }} published</p>
+                <p class="small muted">{{ u.lessons.length }} circles · {{ u.recorded }} of {{ plural(u.pages, 'page') }} recorded · {{ u.published }} published</p>
               </div>
-              <button type="button" class="btn btn-danger btn-sm" (click)="removeUnit(u.unit)">Delete unit</button>
+              <button type="button" class="btn btn-danger btn-sm" (click)="removeUnit(u.unit, $event)">Delete unit</button>
             </div>
             <div class="meter wide"><span [style.width.%]="u.pages ? (u.recorded / u.pages) * 100 : 0"></span></div>
             <ol class="trail">
@@ -129,7 +131,7 @@ type Filter = 'all' | 'draft' | 'published';
               } @else {
                 <span class="subj need">Choose a subject</span>
               }
-              <span class="small muted">{{ l.pages.length }} pages · {{ recorded(l.pages) }} recorded · {{ l.activities.length }} activities</span>
+              <span class="small muted">{{ plural(l.pages.length, 'page') }} · {{ recorded(l.pages) }} recorded · {{ plural(l.activities.length, 'activity') }}</span>
             </div>
             <div class="size">
               <div class="meter"><span [style.width.%]="pct(l)" [class.over]="data.packBytes(l) > limit"></span></div>
@@ -223,6 +225,8 @@ export class Lessons {
   readonly subjects = SUBJECTS;
   readonly world = subjectOf;
   readonly icon = subjectIcon;
+  readonly plural = plural;
+  private readonly processing = inject(Processing);
   readonly q = signal('');
 
   readonly justCreated = computed(() => (this.unit() ? this.data.unit(this.unit()!) : undefined));
@@ -293,9 +297,28 @@ export class Lessons {
     return `${this.recorded(l.pages)}/${l.pages.length} recorded`;
   }
 
-  async removeUnit(u: Unit): Promise<void> {
+  async removeUnit(u: Unit, event: Event): Promise<void> {
     if (!confirm(`Delete the unit "${u.title}" and all its lessons and recordings? This cannot be undone.`)) return;
-    await this.data.deleteUnit(u.id);
+    const n = this.data.unitLessons(u.id).length;
+    let removed = false;
+    await this.processing.run({
+      title: 'Deleting the unit',
+      detail: u.title,
+      from: event,
+      steps: [
+        {
+          label: `Removing ${plural(n, 'lesson')}`,
+          detail: 'With their recordings and pictures',
+          run: async () => {
+            if (removed) return;
+            removed = true;
+            await this.data.deleteUnit(u.id);
+          },
+        },
+        { label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser', run: () => this.data.flush() },
+      ],
+      done: { title: 'Unit deleted', detail: u.title },
+    });
   }
 
   recorded(pages: { audioId?: string }[]): number {

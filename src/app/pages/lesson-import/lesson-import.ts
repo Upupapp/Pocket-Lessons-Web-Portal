@@ -11,10 +11,12 @@ import {
   planUnit,
   suggestedLessonCount,
 } from '../../core/lesson-import';
-import { LANGUAGES, LEVELS, LEVEL_HINT, Level, PASS_MARK } from '../../core/models';
+import { LANGUAGES, LEVELS, LEVEL_HINT, Level, PASS_MARK, Unit } from '../../core/models';
+import { apiMode } from '../../core/api';
+import { Processing } from '../../core/processing';
 import { Coach } from '../../shared/coach';
 import { SubjectPicker } from '../../shared/subject-picker';
-import { SubjectKey, detectLanguage, subjectOf, suggestSubject } from '../../core/subjects';
+import { SubjectKey, detectLanguage, ensureSubjectFont, subjectOf, suggestSubject } from '../../core/subjects';
 
 /**
  * Import a lesson file (WEB-06 extension): the portal reads the story, questions and answer key,
@@ -29,6 +31,7 @@ import { SubjectKey, detectLanguage, subjectOf, suggestSubject } from '../../cor
 export class LessonImport {
   private readonly data = inject(DataService);
   private readonly router = inject(Router);
+  private readonly processing = inject(Processing);
 
   readonly levels = LEVELS;
   readonly levelHint = LEVEL_HINT;
@@ -113,23 +116,59 @@ export class LessonImport {
     this.dialogOpen.set(true);
   }
 
-  create(): void {
+  /** Creates the unit behind the loader: split, save, get the subject world ready, then open the Lessons page. */
+  async create(event?: Event): Promise<void> {
     const parsed = this.parsed();
     const plan = this.plan();
-    if (!parsed || !plan || !this.canCreate()) return;
-    const unit = this.data.createUnit(
-      {
-        title: this.title().trim(),
-        author: parsed.author || undefined,
-        level: this.level(),
-        language: this.language(),
-        sourceFile: this.fileName() || undefined,
-        sourceLabel: parsed.label || undefined,
-        subject: this.subject()!,
-      },
-      plan,
-    );
-    void this.router.navigate(['/app/lessons'], { queryParams: { unit: unit.id } });
+    const subject = this.subject();
+    if (!parsed || !plan || !subject || !this.canCreate()) return;
+    const title = this.title().trim();
+    const world = subjectOf(subject);
+    const n = plan.lessons.length;
+    const q = parsed.questions.length;
+    const p = parsed.paragraphs.length;
+    const lessons = `${n} short lesson${n === 1 ? '' : 's'}`;
+    let unit: Unit | undefined;
+    await this.processing.run({
+      title: 'Creating your lessons',
+      detail: `${title} · from ${this.fileName() || 'your file'}`,
+      from: event,
+      steps: [
+        { label: 'Reading the story and questions', detail: `${p} paragraph${p === 1 ? '' : 's'} and ${q} question${q === 1 ? '' : 's'} found` },
+        {
+          label: `Splitting it into ${lessons}`,
+          detail: `${plan.lessons.map((_, i) => `Part ${i + 1}`).join(', ')} and a checkpoint`,
+          run: () => {
+            unit ??= this.data.createUnit(
+              {
+                title,
+                author: parsed.author || undefined,
+                level: this.level(),
+                language: this.language(),
+                sourceFile: this.fileName() || undefined,
+                sourceLabel: parsed.label || undefined,
+                subject,
+              },
+              plan,
+            );
+          },
+        },
+        {
+          label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser',
+          detail: apiMode ? `Sending ${n + 1} lessons · keep this page open` : 'Kept on this computer for the preview',
+          run: () => this.data.flush(),
+        },
+        {
+          label: `Getting the ${world.childEn} world ready`,
+          detail: `${world.world} · colours and pictures`,
+          run: async () => {
+            ensureSubjectFont(world);
+            await this.router.navigate(['/app/lessons'], { queryParams: { unit: unit!.id } });
+          },
+        },
+      ],
+      done: { title: `${n} lesson${n === 1 ? '' : 's'} created`, detail: `${title} · ${world.childEn}` },
+    });
   }
 
   subjectName(key: SubjectKey): string {

@@ -4,6 +4,8 @@ import { ActivatedRoute } from '@angular/router';
 import { ActivationCodeInfo, AdminCenter, AdminClass, AdminFamily, AVATARS, fmtDate } from '../../core/admin-models';
 import { KidAvatar, avatarLabel } from '../../shared/kid-avatar';
 import { AdminService, adminError } from '../../core/admin.service';
+import { plural } from '../../core/models';
+import { Processing } from '../../core/processing';
 import { CopyButton } from '../../shared/copy-button';
 
 interface ChildRow {
@@ -43,7 +45,7 @@ interface ChildRow {
     }
 
     @if (adding()) {
-      <form class="card adm-gap no-print" (ngSubmit)="add()">
+      <form class="card adm-gap no-print" (ngSubmit)="add($event)">
         <h2 class="adm-card-title">Add a family</h2>
         <div class="adm-form-grid">
           <label class="field"><span>Center</span>
@@ -130,9 +132,9 @@ interface ChildRow {
                 <td class="small">{{ f.center }}</td>
                 <td>
                   <div class="adm-actions">
-                    <button type="button" class="btn btn-ghost btn-sm" (click)="newCode(f)" [disabled]="busy()">New code</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="newCode(f, $event)" [disabled]="busy()">New code</button>
                     @if (f.pinSet) {
-                      <button type="button" class="btn btn-danger btn-sm" (click)="resetPin(f)" [disabled]="busy()">Reset PIN</button>
+                      <button type="button" class="btn btn-danger btn-sm" (click)="resetPin(f, $event)" [disabled]="busy()">Reset PIN</button>
                     }
                   </div>
                 </td>
@@ -162,6 +164,7 @@ interface ChildRow {
 })
 export class AdminFamiliesPage {
   private readonly admin = inject(AdminService);
+  private readonly processing = inject(Processing);
   readonly avatars = AVATARS;
   readonly label = avatarLabel;
   readonly fmt = fmtDate;
@@ -225,54 +228,70 @@ export class AdminFamiliesPage {
     this.code.set(null);
   }
 
-  async add(): Promise<void> {
+  async add(event?: Event): Promise<void> {
     this.error.set('');
     const children = this.form.children.filter((k) => k.name.trim()).map((k) => ({ ...k, name: k.name.trim() }));
-    if (!this.form.centerId || !this.form.parentName.trim()) return this.error.set("Fill in the center and the parent's name.");
+    const parent = this.form.parentName.trim();
+    if (!this.form.centerId || !parent) return this.error.set("Fill in the center and the parent's name.");
     if (!children.length) return this.error.set("Add at least one child's first name.");
     this.busy.set(true);
-    try {
-      const res = await this.admin.createFamily({ centerId: this.form.centerId, parentName: this.form.parentName.trim(), phone: this.form.phone.trim(), children });
-      this.codeFamily.set(res.family.parentName);
-      this.code.set(res.code);
-      this.form = { centerId: this.form.centerId, parentName: '', phone: '', children: [this.blankChild()] };
-      this.adding.set(false);
-      this.families.set(await this.admin.families());
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: `Adding ${parent}'s family`,
+      detail: `${plural(children.length, 'child', 'children')} · making a 6-digit phone code`,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const res = await this.admin.createFamily({ centerId: this.form.centerId, parentName: parent, phone: this.form.phone.trim(), children });
+        this.codeFamily.set(res.family.parentName);
+        this.code.set(res.code);
+        this.families.set(await this.admin.families());
+      },
+      done: () => ({ title: 'Family added', detail: `${parent} · phone code ${this.code()?.code ?? 'ready'}` }),
+    });
+    this.busy.set(false);
+    if (!r.ok) return this.error.set(r.error);
+    this.form = { centerId: this.form.centerId, parentName: '', phone: '', children: [this.blankChild()] };
+    this.adding.set(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async newCode(f: AdminFamily): Promise<void> {
+  async newCode(f: AdminFamily, event?: Event): Promise<void> {
     if (f.activated && !confirm(`${f.parentName}'s phone is already linked. Make a new code anyway (for example for a new phone)?`)) return;
     this.busy.set(true);
-    try {
-      const res = await this.admin.newCode(f.id);
-      this.codeFamily.set(f.parentName);
-      this.code.set(res.code);
-      this.families.set(await this.admin.families());
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: 'Making a new phone code',
+      detail: f.parentName,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const res = await this.admin.newCode(f.id);
+        this.codeFamily.set(f.parentName);
+        this.code.set(res.code);
+        this.families.set(await this.admin.families());
+      },
+      done: () => ({ title: 'New phone code ready', detail: `${f.parentName} · ${this.code()?.code ?? ''}` }),
+    });
+    this.busy.set(false);
+    if (!r.ok) return this.error.set(r.error);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async resetPin(f: AdminFamily): Promise<void> {
+  async resetPin(f: AdminFamily, event?: Event): Promise<void> {
     if (!confirm(`Reset ${f.parentName}'s 3-digit PIN? The parent chooses a new PIN on the phone the next time it connects.`)) return;
     this.busy.set(true);
-    try {
-      const updated = await this.admin.resetPin(f.id);
-      this.families.update((list) => list.map((x) => (x.id === f.id ? updated : x)));
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: 'Resetting the PIN',
+      detail: f.parentName,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.resetPin(f.id);
+        this.families.update((list) => list.map((x) => (x.id === f.id ? updated : x)));
+      },
+      done: { title: 'PIN reset', detail: `${f.parentName} chooses a new PIN on the phone` },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 
   print(): void {

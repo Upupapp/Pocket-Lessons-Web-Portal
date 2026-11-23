@@ -1,7 +1,9 @@
-import { Component, OnInit, inject, input, signal } from '@angular/core';
+import { Component, Injector, OnInit, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { DataService } from '../../core/data.service';
+import { ProcessError, Processing } from '../../core/processing';
 import { BrandPanel } from '../../shared/brand-panel';
 
 /** W-01 A new teacher opens the administrator's one-time setup link and chooses their own password. */
@@ -22,7 +24,7 @@ import { BrandPanel } from '../../shared/brand-panel';
           } @else {
             <h1>Hello, {{ info()?.name }}</h1>
             <p class="muted">You are joining <strong>{{ info()?.center }}</strong> as {{ info()?.email }}.</p>
-            <form (ngSubmit)="save()" novalidate>
+            <form (ngSubmit)="save($event)" novalidate>
               <label class="field"><span>Choose a password</span>
                 <input class="input" type="password" name="p1" autocomplete="new-password" [(ngModel)]="password" />
                 <span class="hint">At least 8 characters.</span>
@@ -54,6 +56,8 @@ import { BrandPanel } from '../../shared/brand-panel';
 export class Setup implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly processing = inject(Processing);
+  private readonly injector = inject(Injector);
   readonly token = input<string>('');
   readonly state = signal<'loading' | 'ready' | 'bad'>('loading');
   readonly info = signal<{ name: string; email: string; center: string } | null>(null);
@@ -74,14 +78,35 @@ export class Setup implements OnInit {
     }
   }
 
-  async save(): Promise<void> {
+  async save(event?: Event): Promise<void> {
     this.error.set('');
     if (this.password.length < 8) return this.error.set('Use at least 8 characters for your password.');
     if (this.password !== this.again) return this.error.set('The two passwords are not the same.');
     this.busy.set(true);
-    const err = await this.auth.completeSetup(this.token(), this.password);
+    const first = (this.info()?.name ?? '').split(' ')[0];
+    const r = await this.processing.run({
+      title: 'Setting up your account',
+      detail: this.info()?.email,
+      from: event,
+      errors: 'inline',
+      steps: [
+        {
+          label: 'Saving your password',
+          run: async () => {
+            const err = await this.auth.completeSetup(this.token(), this.password);
+            if (err) throw new ProcessError(err);
+          },
+        },
+        {
+          label: 'Loading your records',
+          detail: this.info()?.center,
+          run: () => (this.auth.isAdmin() ? undefined : this.injector.get(DataService).whenReady()),
+        },
+        { label: 'Opening your work', detail: 'Your dashboard', run: () => this.router.navigateByUrl(this.auth.home()) },
+      ],
+      done: { title: `You're all set, ${first}`, detail: `Account ready · ${this.info()?.center ?? ''}` },
+    });
     this.busy.set(false);
-    if (err) return this.error.set(err);
-    void this.router.navigateByUrl(this.auth.home());
+    if (!r.ok) this.error.set(r.error);
   }
 }

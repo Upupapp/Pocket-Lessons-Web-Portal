@@ -100,7 +100,7 @@
                   <div class="node-body">
                     <div class="node-top">
                       <strong>{{ l.title }}</strong>
-                      <span class="pill pill-grey">{{ l.paragraphs.length }} pages · {{ l.words }} words · {{ l.minutes }} min</span>
+                      <span class="pill pill-grey">{{ l.paragraphs.length }} {{ l.paragraphs.length === 1 ? 'page' : 'pages' }} · {{ l.words }} words · {{ l.minutes }} min</span>
                     </div>
                     <p class="quote">{{ excerpt(l.paragraphs[0]) }}</p>
                     @if (l.reviewWords.length) {
@@ -154,8 +154,8 @@
             <li><b>3</b><span>Check the practice words and add pictures if you like.</span></li>
             <li><b>4</b><span>Use <strong>Preview as the child</strong>, then publish.</span></li>
           </ol>
-          <button type="button" class="btn btn-primary full" (click)="create()" [disabled]="!canCreate()">
-            Create {{ plan()?.lessons?.length }} lessons + checkpoint
+          <button type="button" class="btn btn-primary full" (click)="create($event)" [disabled]="!canCreate()">
+            Create {{ plan()?.lessons?.length }} {{ plan()?.lessons?.length === 1 ? 'lesson' : 'lessons' }} + checkpoint
           </button>
           <button type="button" class="btn btn-ghost full" (click)="reset()">Choose another file</button>
         </section>

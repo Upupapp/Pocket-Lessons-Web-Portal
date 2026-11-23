@@ -1,7 +1,9 @@
-import { Component, ElementRef, afterNextRender, computed, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { ImportDraftData } from '../core/import-draft';
-import { parseLessonText } from '../core/lesson-import';
+import { ParsedLesson, parseLessonText } from '../core/lesson-import';
+import { formatBytes, plural } from '../core/models';
 import { pdfToText } from '../core/pdf-text';
+import { ProcessError, Processing } from '../core/processing';
 import { SubjectKey, subjectIcon, subjectOf } from '../core/subjects';
 import { SubjectPicker } from './subject-picker';
 
@@ -40,6 +42,7 @@ import { SubjectPicker } from './subject-picker';
             </p>
           }
           <label
+            #drop
             class="drop"
             [class.over]="dragging()"
             [class.busy]="busy()"
@@ -121,6 +124,8 @@ export class ImportDialog {
   readonly fileName = signal('');
 
   private readonly dlg = viewChild<ElementRef<HTMLDialogElement>>('dlg');
+  private readonly drop = viewChild<ElementRef<HTMLElement>>('drop');
+  private readonly processing = inject(Processing);
 
   constructor() {
     afterNextRender(() => {
@@ -157,6 +162,7 @@ export class ImportDialog {
     if (file) await this.read(file);
   }
 
+  /** Reads the file behind the loader (it grows out of the drop area); a problem is shown here, under it. */
   async read(file: File): Promise<void> {
     this.error.set('');
     this.fileName.set(file.name);
@@ -165,22 +171,50 @@ export class ImportDialog {
     if (!isPdf && !isText) return this.error.set('Choose a PDF or a .txt file. For a Word file, save it as PDF first.');
     if (file.size > 15 * 1024 * 1024) return this.error.set('That file is larger than 15 MB. Lesson files are usually under 1 MB.');
     this.busy.set(true);
-    try {
-      const text = isPdf ? await pdfToText(file) : await file.text();
-      if (!text.trim()) return this.error.set('No text could be read from this file. It may be a scanned picture of the page: save the lesson from Word or Google Docs as PDF and upload that.');
-      this.useText(text);
-    } catch (err) {
-      console.error(err);
-      this.error.set('This file could not be read. Try saving it again as PDF.');
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  private useText(text: string): void {
-    const parsed = parseLessonText(text);
-    if (!parsed.paragraphs.length) return this.error.set(parsed.warnings[0] ?? 'No story text was found.');
-    this.dlg()?.nativeElement.close();
-    this.done.emit({ subject: this.subject()!, parsed, fileName: this.fileName() });
+    let text = '';
+    let parsed = null as ParsedLesson | null; // filled in by a step below
+    const r = await this.processing.run({
+      title: 'Reading your lesson file',
+      detail: file.name,
+      from: this.drop()?.nativeElement,
+      errors: 'inline',
+      steps: [
+        {
+          label: isPdf ? 'Opening the PDF' : 'Opening the text file',
+          detail: `${formatBytes(file.size)} · read in this browser, nothing is uploaded`,
+          run: async () => {
+            text = isPdf ? await pdfToText(file) : await file.text();
+          },
+        },
+        {
+          label: 'Finding the story, questions and answer key',
+          detail: 'As in the AHA lesson template',
+          run: () => {
+            if (!text.trim()) {
+              throw new ProcessError('No text could be read from this file. It may be a scanned picture of the page: save the lesson from Word or Google Docs as PDF and upload that.');
+            }
+            parsed = parseLessonText(text);
+            if (!parsed.paragraphs.length) throw new ProcessError(parsed.warnings[0] ?? 'No story text was found.');
+          },
+        },
+        {
+          label: 'Opening the review',
+          detail: () => (parsed ? `${parsed.title}: ${plural(parsed.paragraphs.length, 'paragraph')}, ${plural(parsed.questions.length, 'question')}` : ''),
+          run: () => {
+            // The review page opens under the loader.
+            this.dlg()?.nativeElement.close();
+            this.done.emit({ subject: this.subject()!, parsed: parsed!, fileName: this.fileName() });
+          },
+        },
+      ],
+      done: () => ({ title: 'Lesson file read', detail: parsed?.title, quiet: true }),
+      errorText: (err) => {
+        if (err instanceof ProcessError) return err.message;
+        console.error(err);
+        return 'This file could not be read. Try saving it again as PDF.';
+      },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 }

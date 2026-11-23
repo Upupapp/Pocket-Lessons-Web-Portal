@@ -1,9 +1,11 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { apiMode } from '../../core/api';
 import { AuthService } from '../../core/auth.service';
 import { DataService } from '../../core/data.service';
 import { Assessment, LEVELS, LEVEL_HINT, Level, daysSince, levelIndex } from '../../core/models';
+import { Processing } from '../../core/processing';
 
 type Mode = 'placement' | 'fluency';
 type Node = 'paragraph' | 'story' | 'words' | 'letters';
@@ -52,6 +54,7 @@ const TOOL: Record<Node, { title: string; ask: string; show: string; yes: Node |
 export class Assess {
   readonly data = inject(DataService);
   private readonly auth = inject(AuthService);
+  private readonly processing = inject(Processing);
 
   /** Query params: ?learner=<id>&mode=fluency */
   readonly learnerParam = input<string>('', { alias: 'learner' });
@@ -187,31 +190,55 @@ export class Assess {
     return this.mode() === 'placement' ? this.placed() !== null : this.phase() === 'done';
   });
 
-  save(): void {
+  /** Saving the check behind the loader: scored, saved, and the child's reading level updated. */
+  async save(event?: Event): Promise<void> {
     const l = this.learner();
     if (!l || !this.canSave()) return;
+    const level = this.resultLevel();
     const base = {
       learnerId: l.id,
       date: new Date().toISOString(),
-      level: this.resultLevel(),
+      level,
       previousLevel: l.level,
       note: this.note.trim(),
       by: this.auth.user()?.name ?? 'Teacher',
     };
-    const saved =
-      this.mode() === 'placement'
-        ? this.data.addAssessment({ ...base, type: 'placement' })
-        : this.data.addAssessment({
-            ...base,
-            type: 'fluency',
-            passage: this.passage(),
-            wordsTotal: this.words().length,
-            missedIndexes: [...this.missed()].sort((a, b) => a - b),
-            seconds: this.seconds(),
-            accuracy: this.accuracy(),
-            wcpm: this.wcpm(),
-          });
-    this.saved.set(saved);
+    const placement = this.mode() === 'placement';
+    const moved = levelIndex(level) - levelIndex(l.level);
+    const change = moved > 0 ? `moves up to ${level}` : moved < 0 ? `moves back to ${level}` : `stays at ${level}`;
+    let saved: Assessment | undefined;
+    await this.processing.run({
+      title: 'Saving the reading check',
+      detail: l.name,
+      from: event,
+      steps: [
+        {
+          label: placement ? 'Placing the reading level' : 'Scoring the reading',
+          detail: placement ? `${level} level` : `${this.wcpm()} words correct a minute · ${this.accuracy()}% correct`,
+        },
+        {
+          label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser',
+          run: () => {
+            saved ??= placement
+              ? this.data.addAssessment({ ...base, type: 'placement' })
+              : this.data.addAssessment({
+                  ...base,
+                  type: 'fluency',
+                  passage: this.passage(),
+                  wordsTotal: this.words().length,
+                  missedIndexes: [...this.missed()].sort((a, b) => a - b),
+                  seconds: this.seconds(),
+                  accuracy: this.accuracy(),
+                  wcpm: this.wcpm(),
+                });
+            return this.data.flush();
+          },
+        },
+        { label: `Updating ${l.name.split(' ')[0]}'s reading level`, detail: change.charAt(0).toUpperCase() + change.slice(1) },
+      ],
+      done: { title: 'Reading check saved', detail: `${l.name} ${change}` },
+    });
+    if (saved) this.saved.set(saved);
   }
 
   checkAnother(): void {

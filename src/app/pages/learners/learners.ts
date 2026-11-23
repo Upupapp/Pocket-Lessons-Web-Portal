@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
+import { Processing } from '../../core/processing';
 
 /** Learners and reading-level groups (WEB-02). */
 @Component({
@@ -18,7 +19,7 @@ import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
     </div>
 
     @if (adding()) {
-      <form class="card add" (ngSubmit)="add()">
+      <form class="card add" (ngSubmit)="add($event)">
         <h2>Add a learner</h2>
         <div class="add-grid">
           <label class="field"><span>Child's name</span><input class="input" name="n" [(ngModel)]="form.name" required maxlength="60" /></label>
@@ -100,6 +101,7 @@ import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
 })
 export class Learners {
   readonly data = inject(DataService);
+  private readonly processing = inject(Processing);
   readonly levels = LEVELS;
   readonly levelHint = LEVEL_HINT;
   readonly level = signal<Level | ''>('');
@@ -121,14 +123,22 @@ export class Learners {
       .sort((a, b) => a.l.name.localeCompare(b.l.name));
   });
 
-  add(): void {
+  async add(event?: Event): Promise<void> {
     if (!this.form.name.trim()) {
       this.formError.set('Enter the child’s name.');
       return;
     }
-    this.data.addLearner({ ...this.form, name: this.form.name.trim(), caregiver: this.form.caregiver.trim() });
-    this.form = { name: '', grade: 1, level: 'Beginner', caregiver: '' };
+    const child = { ...this.form, name: this.form.name.trim(), caregiver: this.form.caregiver.trim() };
+    this.data.addLearner(child);
     this.formError.set('');
+    await this.processing.run({
+      title: `Adding ${child.name}`,
+      detail: `Grade ${child.grade} · ${child.level} level`,
+      from: event,
+      run: () => this.data.flush(),
+      done: { title: `${child.name} added`, detail: `${child.level} level · Grade ${child.grade}` },
+    });
+    this.form = { name: '', grade: 1, level: 'Beginner', caregiver: '' };
     this.adding.set(false);
   }
 }

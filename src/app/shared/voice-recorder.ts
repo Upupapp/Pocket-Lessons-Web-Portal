@@ -1,6 +1,7 @@
-import { Component, DestroyRef, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, ElementRef, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { ApiError } from '../core/api';
 import { uid } from '../core/models';
+import { Processing } from '../core/processing';
 import { media } from '../core/storage';
 
 export interface Recording {
@@ -74,6 +75,8 @@ export class VoiceRecorder {
   readonly hint = input('Read it aloud in your own voice.');
   readonly recorded = output<Recording>();
   readonly removed = output<void>();
+  private readonly processing = inject(Processing);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly state = signal<'idle' | 'asking' | 'recording'>('idle');
   readonly url = signal<string>('');
@@ -164,13 +167,17 @@ export class VoiceRecorder {
     }
     const previous = this.audioId();
     const id = uid('aud');
-    try {
-      await media.put(id, blob);
-    } catch (err) {
-      const reason = err instanceof ApiError ? err.message : 'This browser could not store it.';
-      this.error.set(`The recording was not saved. ${reason} Your earlier take is kept.`);
-      return;
-    }
+    // A quick save: the loader only shows when storing the recording takes a moment (e.g. a slow upload).
+    const r = await this.processing.run({
+      title: 'Saving your recording',
+      detail: `${seconds} s of your voice`,
+      from: this.host.nativeElement,
+      quick: true,
+      errors: 'inline',
+      run: () => media.put(id, blob),
+      errorText: (err) => `The recording was not saved. ${err instanceof ApiError ? err.message : 'This browser could not store it.'} Your earlier take is kept.`,
+    });
+    if (!r.ok) return this.error.set(r.error);
     if (previous) await media.delete(previous).catch(() => undefined);
     this.recorded.emit({ audioId: id, audioBytes: blob.size, audioSeconds: seconds });
   }

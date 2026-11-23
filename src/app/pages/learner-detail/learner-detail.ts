@@ -2,8 +2,10 @@ import { DatePipe } from '@angular/common';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { apiMode } from '../../core/api';
 import { DataService } from '../../core/data.service';
 import { LEVELS, Learner, levelIndex } from '../../core/models';
+import { Processing } from '../../core/processing';
 import { LineChart, LinePoint } from '../../shared/charts/line-chart';
 
 /** Learner profile with reading-level path, reading speed and check history (WEB-03). */
@@ -28,14 +30,14 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
       </div>
 
       @if (editing(); as e) {
-        <form class="card edit" (ngSubmit)="saveEdit()">
+        <form class="card edit" (ngSubmit)="saveEdit($event)">
           <label class="field"><span>Name</span><input class="input" name="n" [(ngModel)]="e.name" required /></label>
           <label class="field"><span>Grade</span>
             <select class="select" name="g" [(ngModel)]="e.grade">@for (g of [1, 2, 3, 4]; track g) { <option [ngValue]="g">Grade {{ g }}</option> }</select>
           </label>
           <label class="field"><span>Caregiver</span><input class="input" name="c" [(ngModel)]="e.caregiver" /></label>
           <div class="row end">
-            <button type="button" class="btn btn-danger btn-sm" (click)="remove(l)">Remove learner</button>
+            <button type="button" class="btn btn-danger btn-sm" (click)="remove(l, $event)">Remove learner</button>
             <button type="button" class="btn btn-ghost" (click)="editing.set(null)">Cancel</button>
             <button type="submit" class="btn btn-primary">Save</button>
           </div>
@@ -129,6 +131,7 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
 export class LearnerDetail {
   private readonly data = inject(DataService);
   private readonly router = inject(Router);
+  private readonly processing = inject(Processing);
   readonly id = input.required<string>();
   readonly levels = LEVELS;
   readonly learner = computed(() => this.data.learner(this.id()));
@@ -160,16 +163,42 @@ export class LearnerDetail {
     this.editing.set({ ...l });
   }
 
-  saveEdit(): void {
+  saveEdit(event?: Event): void {
     const e = this.editing();
     if (!e || !e.name.trim()) return;
-    this.data.updateLearner({ ...e, name: e.name.trim() });
+    const name = e.name.trim();
+    this.data.updateLearner({ ...e, name });
+    // A quick save: the loader only shows if the server takes a moment.
+    void this.processing.run({
+      title: `Saving ${name}'s details`,
+      from: event,
+      quick: true,
+      run: () => this.data.flush(),
+      done: { title: 'Details saved', detail: name },
+    });
     this.editing.set(null);
   }
 
-  remove(l: Learner): void {
+  async remove(l: Learner, event?: Event): Promise<void> {
     if (!confirm(`Remove ${l.name} and all their checks? This cannot be undone.`)) return;
-    this.data.removeLearner(l.id);
-    void this.router.navigateByUrl('/app/learners');
+    let removed = false;
+    await this.processing.run({
+      title: `Removing ${l.name}`,
+      detail: 'With their reading checks',
+      from: event,
+      steps: [
+        {
+          label: 'Removing the learner and their checks',
+          run: () => {
+            if (removed) return;
+            removed = true;
+            this.data.removeLearner(l.id);
+          },
+        },
+        { label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser', run: () => this.data.flush() },
+        { label: 'Back to your learners', run: () => this.router.navigateByUrl('/app/learners') },
+      ],
+      done: { title: `${l.name} removed`, detail: 'Their reading checks were removed too' },
+    });
   }
 }

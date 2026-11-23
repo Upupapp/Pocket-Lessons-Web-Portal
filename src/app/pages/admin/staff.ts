@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { AdminCenter, AdminStaff, SetupLinkInfo, STAFF_ROLES, StaffRoleKey, fmtDate } from '../../core/admin-models';
 import { AdminService, adminError } from '../../core/admin.service';
+import { Processing } from '../../core/processing';
 import { CopyButton } from '../../shared/copy-button';
 import { Qr } from '../../shared/qr';
 
@@ -40,7 +41,7 @@ import { Qr } from '../../shared/qr';
     }
 
     @if (adding()) {
-      <form class="card adm-gap" (ngSubmit)="add()">
+      <form class="card adm-gap" (ngSubmit)="add($event)">
         <h2 class="adm-card-title">Add a teacher</h2>
         <div class="adm-form-grid">
           <label class="field"><span>Full name</span><input class="input" name="n" [(ngModel)]="form.name" maxlength="120" placeholder="e.g. Nora Lim" /></label>
@@ -93,12 +94,12 @@ import { Qr } from '../../shared/qr';
                 <td>
                   <div class="adm-actions">
                     @if (s.active && s.setupPending) {
-                      <button type="button" class="btn btn-ghost btn-sm" (click)="newLink(s)" [disabled]="busy()">New setup link</button>
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="newLink(s, $event)" [disabled]="busy()">New setup link</button>
                     }
                     @if (s.active) {
-                      <button type="button" class="btn btn-danger btn-sm" (click)="setActive(s, false)" [disabled]="busy()">Turn off</button>
+                      <button type="button" class="btn btn-danger btn-sm" (click)="setActive(s, false, $event)" [disabled]="busy()">Turn off</button>
                     } @else {
-                      <button type="button" class="btn btn-ghost btn-sm" (click)="setActive(s, true)" [disabled]="busy()">Turn on</button>
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="setActive(s, true, $event)" [disabled]="busy()">Turn on</button>
                     }
                   </div>
                 </td>
@@ -122,6 +123,7 @@ import { Qr } from '../../shared/qr';
 })
 export class AdminStaffPage {
   private readonly admin = inject(AdminService);
+  private readonly processing = inject(Processing);
   readonly roles = STAFF_ROLES;
   readonly fmt = fmtDate;
   readonly centers = signal<AdminCenter[]>([]);
@@ -168,58 +170,80 @@ export class AdminStaffPage {
     this.link.set(null);
   }
 
-  async add(): Promise<void> {
+  async add(event?: Event): Promise<void> {
     this.error.set('');
-    if (!this.form.name.trim() || !this.form.email.trim() || !this.form.centerId) return this.error.set('Fill in the name, email and center.');
+    const name = this.form.name.trim();
+    const email = this.form.email.trim();
+    if (!name || !email || !this.form.centerId) return this.error.set('Fill in the name, email and center.');
+    const center = this.centers().find((c) => c.id === this.form.centerId)?.name ?? '';
     this.busy.set(true);
-    try {
-      const res = await this.admin.createStaff({ ...this.form, name: this.form.name.trim(), email: this.form.email.trim() });
-      this.linkFor.set(res.staff.name);
-      this.link.set(res.setupLink);
-      this.form = { name: '', email: '', centerId: this.form.centerId, role: 'TEACHER' };
-      this.adding.set(false);
-      this.staff.set(await this.admin.staff());
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: `Adding ${name}`,
+      detail: `${center} · making a one-time setup link`,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const res = await this.admin.createStaff({ ...this.form, name, email });
+        this.linkFor.set(res.staff.name);
+        this.link.set(res.setupLink);
+        this.staff.set(await this.admin.staff());
+      },
+      done: { title: `${name} added`, detail: 'The setup link is ready to share' },
+    });
+    this.busy.set(false);
+    if (!r.ok) return this.error.set(r.error);
+    this.form = { name: '', email: '', centerId: this.form.centerId, role: 'TEACHER' };
+    this.adding.set(false);
   }
 
-  async newLink(s: AdminStaff): Promise<void> {
+  async newLink(s: AdminStaff, event?: Event): Promise<void> {
     if (!confirm(`Make a new setup link for ${s.name}? Any older link stops working.`)) return;
     this.busy.set(true);
-    try {
-      const res = await this.admin.newSetupLink(s.id);
-      this.linkFor.set(s.name);
-      this.link.set(res.setupLink);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title: 'Making a new setup link',
+      detail: s.name,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const res = await this.admin.newSetupLink(s.id);
+        this.linkFor.set(s.name);
+        this.link.set(res.setupLink);
+      },
+      done: { title: 'New setup link ready', detail: `For ${s.name} · older links stop working` },
+    });
+    this.busy.set(false);
+    if (!r.ok) return this.error.set(r.error);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  async setActive(s: AdminStaff, active: boolean): Promise<void> {
+  async setActive(s: AdminStaff, active: boolean, event?: Event): Promise<void> {
     if (!active && !confirm(`Turn off ${s.name}'s account? They are signed out everywhere and cannot sign in until you turn it back on. Their lessons and records are kept.`)) return;
-    await this.patch(s, { active });
+    await this.patch(s, { active }, active ? `Turning on ${s.name}'s account` : `Turning off ${s.name}'s account`, active ? 'Account turned on' : 'Account turned off', event);
   }
 
   async setRole(s: AdminStaff, role: StaffRoleKey): Promise<void> {
-    if (role !== s.roleKey) await this.patch(s, { role });
+    if (role === s.roleKey) return;
+    const label = STAFF_ROLES.find((r) => r.key === role)?.label ?? role;
+    await this.patch(s, { role }, `Changing ${s.name}'s role`, `Now ${label}`);
   }
 
-  private async patch(s: AdminStaff, patch: { role?: StaffRoleKey; active?: boolean }): Promise<void> {
+  /** Small changes: the loader only shows if the server takes a moment. */
+  private async patch(s: AdminStaff, patch: { role?: StaffRoleKey; active?: boolean }, title: string, doneTitle: string, event?: Event): Promise<void> {
     this.busy.set(true);
     this.error.set('');
-    try {
-      const updated = await this.admin.updateStaff(s.id, patch);
-      this.staff.update((list) => list.map((x) => (x.id === s.id ? updated : x)));
-    } catch (e) {
-      this.error.set(adminError(e));
-    } finally {
-      this.busy.set(false);
-    }
+    const r = await this.processing.run({
+      title,
+      detail: s.email,
+      from: event,
+      quick: true,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.updateStaff(s.id, patch);
+        this.staff.update((list) => list.map((x) => (x.id === s.id ? updated : x)));
+      },
+      done: { title: doneTitle, detail: s.name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 }

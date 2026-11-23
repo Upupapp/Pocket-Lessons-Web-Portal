@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/rou
 import { apiMode } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { DataService } from '../core/data.service';
+import { Processing } from '../core/processing';
 import { Logo } from '../shared/logo';
 
 interface NavItem {
@@ -48,7 +49,7 @@ const NAV: NavItem[] = [
             <span>{{ auth.user()?.role }} · {{ auth.user()?.center }}</span>
           </div>
         </div>
-        <button type="button" class="out" (click)="signOut()">Sign out</button>
+        <button type="button" class="out" (click)="signOut($event)">Sign out</button>
       </aside>
 
       <div class="main">
@@ -162,6 +163,7 @@ export class Shell {
   readonly auth = inject(AuthService);
   readonly data = inject(DataService);
   private readonly router = inject(Router);
+  private readonly processing = inject(Processing);
   readonly nav = NAV;
   readonly apiMode = apiMode;
   readonly menuOpen = signal(false);
@@ -173,10 +175,25 @@ export class Shell {
       .join(''),
   );
 
-  signOut(): void {
-    if (this.data.syncing() && !confirm('Some changes are still being saved. Sign out anyway?')) return;
-    this.auth.signOut();
-    void this.router.navigateByUrl('/sign-in');
+  /** Signing out waits for changes still on their way to the server, so nothing is lost. */
+  async signOut(event: Event): Promise<void> {
+    await this.processing.run({
+      title: 'Signing you out',
+      detail: this.auth.user()?.name,
+      from: event,
+      steps: [
+        { label: 'Saving your last changes', detail: apiMode ? 'Making sure the server has everything' : 'Kept in this browser', run: () => this.data.flush() },
+        {
+          label: 'Signing out',
+          detail: 'Closing your work on this computer',
+          run: () => {
+            this.auth.signOut();
+            return this.router.navigateByUrl('/sign-in');
+          },
+        },
+      ],
+      done: { title: 'Signed out', detail: 'See you next time. Tuloy ang aral!' },
+    });
   }
 
   reload(): void {

@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { DataService } from '../../core/data.service';
 import { checkedWithin, childSpeedRows, classSpeed, levelMoves, levelParts, weeklySpeeds } from '../../core/insights';
-import { PACK_LIMIT_BYTES, daysSince, formatBytes, levelIndex } from '../../core/models';
+import { PACK_LIMIT_BYTES, daysSince, formatBytes, levelIndex, plural } from '../../core/models';
 import { CHART } from '../../shared/charts/chart-kit';
 import { DonutChart } from '../../shared/charts/donut';
 import { LineChart } from '../../shared/charts/line-chart';
@@ -166,7 +166,7 @@ import { UpDownChart } from '../../shared/charts/updown-chart';
                 <a [routerLink]="['/app/lessons', l.id]">
                   <div class="l-main">
                     <strong>{{ l.title || 'Untitled lesson' }}</strong>
-                    <span class="small muted">{{ l.level }} · {{ l.pages.length }} pages · {{ recorded(l) }} recorded</span>
+                    <span class="small muted">{{ l.level }} · {{ plural(l.pages.length, 'page') }} · {{ recorded(l) }} recorded</span>
                     <div class="meter" role="img" [attr.aria-label]="'Pack size ' + fmt(data.packBytes(l)) + ' of 2 MB'"><span [style.width.%]="pct(l)"></span></div>
                   </div>
                   <div class="l-side">
@@ -234,6 +234,7 @@ export class Overview {
   readonly auth = inject(AuthService);
   readonly today = new Date();
   readonly fmt = formatBytes;
+  readonly plural = plural;
   readonly daysSince = daysSince;
 
   readonly firstName = computed(() => (this.auth.user()?.name ?? '').split(' ')[0]);

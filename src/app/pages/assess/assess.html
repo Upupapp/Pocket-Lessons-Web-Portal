@@ -148,7 +148,7 @@
             <span>Note (optional)</span>
             <input class="input" [(ngModel)]="note" placeholder="e.g. Paused on longer words" maxlength="200" />
           </label>
-          <button type="button" class="btn btn-primary" (click)="save()">Save check</button>
+          <button type="button" class="btn btn-primary" (click)="save($event)">Save check</button>
         </div>
       }
     </section>
