@@ -147,6 +147,11 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
+/** "1 page", "3 pages", "1 activity", "2 activities". */
+export function plural(n: number, one: string, many = /[^aeiou]y$/.test(one) ? `${one.slice(0, -1)}ies` : `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 export function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 }

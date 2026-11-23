@@ -16,6 +16,7 @@ import {
   uid,
 } from './models';
 import { UnitPlan } from './lesson-import';
+import { ProcessError } from './processing';
 import { baselineDay, baselineLevel, neverChecked, sampleHistory } from './sample-history';
 import type { SubjectKey } from './subjects';
 import { local, media } from './storage';
@@ -157,6 +158,10 @@ export class DataService {
   private readonly pending = signal(0);
   /** True while changes are still on their way to the server. */
   readonly syncing = computed(() => this.pending() > 0);
+  /** Counts changes the server did not accept, so flush() can tell whether its own changes got through. */
+  private failures = 0;
+  /** Server paths whose last write failed: sent again (from the current copy here) the next time flush() runs. */
+  private readonly unsaved = new Map<string, 'put' | 'delete'>();
 
   private queue: Promise<unknown> = Promise.resolve();
   /** Latest body per PUT path that has not been sent yet, so quick edits go out as one request. */
@@ -241,16 +246,67 @@ export class DataService {
     }
   }
 
-  private enqueue(run: () => Promise<unknown>): void {
+  private enqueue(run: () => Promise<unknown>, path: string, kind: 'put' | 'delete'): void {
     this.pending.update((n) => n + 1);
     this.queue = this.queue
       .then(run)
+      .then(() => this.unsaved.delete(path))
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) return;
+        this.failures++;
+        this.unsaved.set(path, kind);
         const reason = err instanceof ApiError ? err.message : 'The server did not accept it.';
         this.syncError.set(`Your last change was not saved. ${reason}`);
       })
       .finally(() => this.pending.update((n) => n - 1));
+  }
+
+  /**
+   * Resolves once every change made so far has reached the server (at once in the browser-only preview).
+   * Changes the server refused earlier are sent again first, from this browser's current copy, so "Try again"
+   * really retries. Throws a message for the teacher when something is still not accepted.
+   */
+  async flush(): Promise<void> {
+    if (!apiMode) return;
+    for (const [path, kind] of [...this.unsaved]) {
+      this.unsaved.delete(path);
+      if (kind === 'delete') this.remoteDelete(path);
+      else {
+        const copy = this.localCopy(path);
+        if (copy) this.remotePut(path, copy);
+      }
+    }
+    const before = this.failures;
+    await this.queue;
+    if (this.failures > before) throw new ProcessError(this.syncError() || 'Your change was not saved on the server.');
+    this.syncError.set('');
+  }
+
+  /** The record a server path stands for, as it is now in this browser (undefined once deleted). */
+  private localCopy(path: string): unknown {
+    const [, kind, id] = path.split('/');
+    switch (kind) {
+      case 'units':
+        return this.unit(id);
+      case 'lessons':
+        return this.lesson(id);
+      case 'learners':
+        return this.learner(id);
+      case 'assessments':
+        return this.assessments().find((a) => a.id === id);
+      default:
+        return undefined;
+    }
+  }
+
+  /** Resolves when the signed-in teacher's records have loaded (at once in the browser-only preview). */
+  async whenReady(timeoutMs = 20000): Promise<void> {
+    const until = Date.now() + timeoutMs;
+    while (!this.ready()) {
+      if (this.loadError()) throw new ProcessError(this.loadError());
+      if (Date.now() > until) throw new ProcessError('Your records are taking long to load. Check your internet and try again.');
+      await new Promise((r) => setTimeout(r, 60));
+    }
   }
 
   private remotePut(path: string, body: unknown): void {
@@ -262,18 +318,24 @@ export class DataService {
     }
     const entry = { body };
     this.unsent.set(path, entry);
-    this.enqueue(async () => {
-      // Skipped when the record was deleted (or deleted and made again) before this request went out.
-      if (this.unsent.get(path) !== entry) return;
-      this.unsent.delete(path);
-      await api.put(path, entry.body);
-    });
+    this.enqueue(
+      async () => {
+        // Skipped when the record was deleted (or deleted and made again) before this request went out.
+        if (this.unsent.get(path) !== entry) return;
+        this.unsent.delete(path);
+        await api.put(path, entry.body);
+      },
+      path,
+      'put',
+    );
   }
 
   private remoteDelete(path: string): void {
     if (!apiMode) return;
     this.unsent.delete(path);
-    this.enqueue(() => api.delete(path));
+    this.unsaved.delete(path);
+    // Already gone on the server (e.g. a retry after the answer was lost) counts as deleted.
+    this.enqueue(() => api.delete(path).catch((err) => (err instanceof ApiError && err.status === 404 ? undefined : Promise.reject(err))), path, 'delete');
   }
 
   // ---------- Derived views ----------

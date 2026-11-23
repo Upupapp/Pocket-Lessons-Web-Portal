@@ -2,14 +2,17 @@ import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Splash } from './splash/splash';
 import { playsIntro } from './splash/intro-policy';
+import { ProcessingOverlay } from './shared/processing-overlay';
 import { AuthService } from './core/auth.service';
 import { session } from './core/storage';
 
 @Component({
   selector: 'pl-root',
-  imports: [RouterOutlet, Splash],
+  imports: [RouterOutlet, Splash, ProcessingOverlay],
   template: `
     <router-outlet />
+    <!-- One loader for everything people do: it stays up while the page changes underneath. -->
+    <pl-processing />
     @if (showSplash()) {
       <pl-splash (done)="splashDone()" />
     }
