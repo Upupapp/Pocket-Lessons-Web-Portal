@@ -1,9 +1,9 @@
-import { Component, DestroyRef, ElementRef, HostListener, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { ApplicationRef, Component, DestroyRef, ElementRef, HostListener, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
 import { WelcomeDevices } from './welcome-devices';
-import { Lang, PAGES, WORDS, cardAt, colorsAt, dot, easeInOutCubic, rubber, say, settle } from './welcome-motion';
+import { Lang, PAGES, WORDS, cardAt, colorsAt, dot, easeInOutCubic, rubber, say, settle, windowClip } from './welcome-motion';
 
 const PAGE_MS = 520;
 /** On wide screens the card crosses more than half the screen, so a page turn takes a little longer. */
@@ -23,6 +23,7 @@ const WIDE = '(min-width: 900px)';
   imports: [Logo, WelcomeDevices],
   template: `
     <main
+      #main
       class="welcome"
       [class.leaving]="leaving()"
       [style.--accent]="colors().accent"
@@ -55,6 +56,7 @@ const WIDE = '(min-width: 900px)';
 
       <!-- On wide screens the card trades sides each page (right, left, right) and glides across between them. -->
       <section
+        #cardEl
         class="card"
         [style.width.px]="wide() ? card().width : null"
         [style.transform]="wide() ? 'translate3d(' + card().x + 'px,0,0)' : null"
@@ -298,6 +300,9 @@ export class Welcome {
   readonly say = say;
 
   private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
+  private readonly mainEl = viewChild<ElementRef<HTMLElement>>('main');
+  private readonly cardEl = viewChild<ElementRef<HTMLElement>>('cardEl');
+  private readonly appRef = inject(ApplicationRef);
   private readonly nextBtn = viewChild<ElementRef<HTMLButtonElement>>('nextBtn');
   private tween: { from: number; to: number; start: number; dur: number } | null = null;
   private dragging: { id: number; x0: number; pos0: number; page0: number; lastX: number; lastT: number; v: number; moved: boolean } | null = null;
@@ -463,8 +468,54 @@ export class Welcome {
 
   private finish(): void {
     local.set('welcomeSeen', true);
+    if (this.openWindow()) return;
     this.leaving.set(true);
     setTimeout(() => void this.router.navigateByUrl('/sign-in'), this.reduced ? 0 : 380);
+  }
+
+  /**
+   * "Get started": the page opens like a window along the wave between its two sides, onto the sign-in page
+   * behind it. The picture side swings away on its outer hinge and the card on the other (on phones: up and
+   * down). A view transition (styles.scss, "window"); browsers without one, and reduced motion, keep the fade.
+   */
+  private openWindow(): boolean {
+    const doc = document as Document & { startViewTransition?: (update: () => Promise<void>) => { finished: Promise<void> } };
+    const main = this.mainEl()?.nativeElement;
+    const card = this.cardEl()?.nativeElement;
+    if (this.reduced || typeof doc.startViewTransition !== 'function' || !main || !card) return false;
+    const wide = this.wide();
+    const box = main.getBoundingClientRect();
+    const c = card.getBoundingClientRect();
+    const root = document.documentElement;
+    const vx = innerWidth / 2;
+    const vy = innerHeight / 2;
+    root.style.setProperty('--wt-clip', windowClip(wide, box.width, box.height, c.left - box.left, c.top - box.top));
+    // Both shutters turn in the same 3D space, seen from the middle of the screen.
+    root.style.setProperty('--wt-po-a', `${vx - box.left}px ${vy - box.top}px`);
+    root.style.setProperty('--wt-po-b', `${vx - c.left}px ${vy - c.top}px`);
+    root.dataset['wt'] = wide ? 'wide' : 'narrow';
+    if (wide) {
+      // The logo sits on the card's side of the line: it swings away with the card.
+      const logo = main.querySelector<HTMLElement>('.bar .logo');
+      if (logo) {
+        const r = logo.getBoundingClientRect();
+        card.appendChild(logo);
+        Object.assign(logo.style, { position: 'absolute', left: `${r.left - c.left}px`, top: `${r.top - c.top}px`, zIndex: '5' });
+      }
+    }
+    main.style.setProperty('view-transition-name', 'wt-a');
+    card.style.setProperty('view-transition-name', 'wt-b');
+    const done = () => {
+      delete root.dataset['wt'];
+      for (const prop of ['--wt-clip', '--wt-po-a', '--wt-po-b']) root.style.removeProperty(prop);
+    };
+    doc
+      .startViewTransition(async () => {
+        await this.router.navigateByUrl('/sign-in');
+        await this.appRef.whenStable();
+      })
+      .finished.then(done, done);
+    return true;
   }
 }
 

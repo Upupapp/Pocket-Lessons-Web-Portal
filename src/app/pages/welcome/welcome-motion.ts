@@ -176,3 +176,23 @@ export const SUNBURST_PATH = (() => {
   }
   return d;
 })();
+
+// ---------- "Get started": the page opens like a window ----------
+
+/**
+ * The picture side of the page as a clip path, cut exactly along the card's wave, for the window that opens on
+ * "Get started" (the card is the other shutter). In px of the page.
+ * Wide screens: the wave runs down the card's left edge (46 px wide, starting 45 px left of the card).
+ * Phones: it runs across the card's top (40 px tall, starting 34 px above the card).
+ */
+export function windowClip(wide: boolean, w: number, h: number, cardLeft: number, cardTop: number): string {
+  const f = (n: number) => Math.round(n * 10) / 10;
+  if (wide) {
+    const x = (u: number) => f(cardLeft - 45 + u);
+    const y = (v: number) => f((v * h) / 100);
+    return `path('M0,0 L${x(32)},0 C${x(0)},${y(22)} ${x(46)},${y(42)} ${x(24)},${y(62)} C${x(6)},${y(78)} ${x(12)},${y(90)} ${x(28)},${y(100)} L0,${f(h)} Z')`;
+  }
+  const x = (u: number) => f((u * w) / 100);
+  const y = (v: number) => f(cardTop - 34 + ((v + 6) * 40) / 46);
+  return `path('M0,0 L${f(w)},0 L${x(100)},${y(22)} C${x(90)},${y(6)} ${x(78)},${y(0)} ${x(62)},${y(18)} C${x(42)},${y(40)} ${x(22)},${y(-6)} ${x(0)},${y(26)} Z')`;
+}

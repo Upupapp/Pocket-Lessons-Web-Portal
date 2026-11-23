@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAGES, SUNBURST_PATH, WORDS, cardAt, colorsAt, dot, mix, rubber, say, settle } from './welcome-motion';
+import { PAGES, SUNBURST_PATH, WORDS, cardAt, colorsAt, dot, mix, rubber, say, settle, windowClip } from './welcome-motion';
 
 // The web welcome pages move like the phone's: colours blend, dots stretch, the card glides across.
 describe('welcome pages', () => {
@@ -59,5 +59,21 @@ describe('welcome pages', () => {
     expect(cardAt(0.3, w, true)).toMatchObject({ x: 1080, opacity: expect.closeTo(0.4, 5) });
     expect(cardAt(0.7, w, true)).toMatchObject({ x: 0, opacity: expect.closeTo(0.4, 5) });
     expect(cardAt(1, w, true)).toMatchObject({ x: 0, opacity: 1 });
+  });
+
+  it('cuts the window along the card’s wave: down its left edge on wide screens, across its top on phones', () => {
+    // 1440 × 900, card from x = 827: the wave starts 45 px left of the card and ends at x = 810 at the bottom.
+    expect(windowClip(true, 1440, 900, 827, 0)).toBe(
+      "path('M0,0 L814,0 C782,198 828,378 806,558 C788,702 794,810 810,900 L0,900 Z')",
+    );
+    // A 390 px phone, card from y = 545: the wave runs from 34 px above the card's top to 6 px below it.
+    const narrow = windowClip(false, 390, 844, 0, 545);
+    expect(narrow.startsWith("path('M0,0 L390,0 L390,")).toBe(true);
+    expect(narrow.endsWith(" Z')")).toBe(true);
+    const ys = [...narrow.matchAll(/,(\d+(?:\.\d)?)/g)].map((m) => Number(m[1])).slice(2);
+    for (const y of ys) {
+      expect(y).toBeGreaterThanOrEqual(545 - 34);
+      expect(y).toBeLessThanOrEqual(545 + 6);
+    }
   });
 });
