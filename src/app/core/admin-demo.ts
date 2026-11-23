@@ -18,7 +18,9 @@ import {
   SetupLinkInfo,
   STAFF_ROLES,
   StaffInput,
+  StaffPatch,
   StaffRoleKey,
+  StudentPatch,
 } from './admin-models';
 
 interface DCenter {
@@ -464,10 +466,18 @@ export class AdminDemoStore {
     return { setupLink };
   }
 
-  updateStaff(staffId: string, patch: { role?: StaffRoleKey; active?: boolean; centerId?: string }): AdminStaff {
+  updateStaff(staffId: string, patch: StaffPatch): AdminStaff {
     const x = this.state.staff.find((s) => s.id === staffId);
     if (!x) throw new AdminDemoError('That staff member was not found.');
     if (patch.centerId) this.center(patch.centerId);
+    if (patch.name !== undefined && !patch.name.trim()) throw new AdminDemoError("Enter the teacher's full name.");
+    const email = patch.email?.trim().toLowerCase();
+    if (email !== undefined) {
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new AdminDemoError('Enter a valid email address.');
+      if (this.state.staff.some((s) => s.email === email && s.id !== staffId) || email === DEMO_ADMIN.email) throw new AdminDemoError('An account with this email already exists.');
+      x.email = email;
+    }
+    if (patch.name) x.name = patch.name.trim();
     if (patch.role) x.roleKey = patch.role;
     if (patch.active !== undefined) x.active = patch.active;
     if (patch.centerId) x.centerId = patch.centerId;
@@ -550,9 +560,14 @@ export class AdminDemoStore {
     return this.families().find((x) => x.id === familyId)!;
   }
 
-  updateStudent(studentId: string, patch: { classId?: string | null; left?: boolean }): AdminStudent {
+  updateStudent(studentId: string, patch: StudentPatch): AdminStudent {
     const s = this.state.students.find((x) => x.id === studentId);
     if (!s) throw new AdminDemoError('That child was not found.');
+    if (patch.name !== undefined && !patch.name.trim()) throw new AdminDemoError("Enter the child's first name.");
+    if (patch.grade !== undefined && ![1, 2, 3, 4].includes(patch.grade)) throw new AdminDemoError('Choose a grade from 1 to 4.');
+    if (patch.name) s.name = patch.name.trim();
+    if (patch.grade !== undefined) s.grade = patch.grade;
+    if (patch.avatar !== undefined) s.avatar = patch.avatar || null;
     if (patch.classId && this.state.classes.find((c) => c.id === patch.classId)?.centerId !== s.centerId) throw new AdminDemoError('Choose a class from the same center.');
     if (patch.classId !== undefined) s.classId = patch.classId;
     if (patch.left !== undefined) s.leftAt = patch.left ? iso() : null;

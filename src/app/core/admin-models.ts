@@ -232,3 +232,21 @@ export function ago(iso: string): string {
   const d = Math.floor(s / 86_400);
   return d === 1 ? 'yesterday' : `${d} days ago`;
 }
+
+/** What the administrator can change about a teacher or staff member. */
+export interface StaffPatch {
+  name?: string;
+  email?: string;
+  role?: StaffRoleKey;
+  active?: boolean;
+  centerId?: string;
+}
+
+/** What the administrator can change about a child. The reading level changes only with reading checks. */
+export interface StudentPatch {
+  name?: string;
+  grade?: number;
+  avatar?: string | null;
+  classId?: string | null;
+  left?: boolean;
+}

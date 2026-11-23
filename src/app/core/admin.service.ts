@@ -13,7 +13,9 @@ import {
   FamilyInput,
   SetupLinkInfo,
   StaffInput,
+  StaffPatch,
   StaffRoleKey,
+  StudentPatch,
 } from './admin-models';
 import { ApiError, OFFLINE_MESSAGE, api, apiMode } from './api';
 import { local } from './storage';
@@ -93,7 +95,7 @@ export class AdminService {
     return this.run(() => api.post<{ setupLink: SetupLinkInfo }>(`/admin/staff/${staffId}/setup-link`, {}), (d) => d.newSetupLink(staffId));
   }
 
-  updateStaff(staffId: string, patch: { role?: StaffRoleKey; active?: boolean; centerId?: string }): Promise<AdminStaff> {
+  updateStaff(staffId: string, patch: StaffPatch): Promise<AdminStaff> {
     return this.run(() => api.patch<AdminStaff>(`/admin/staff/${staffId}`, patch), (d) => d.updateStaff(staffId, patch));
   }
 
@@ -129,7 +131,7 @@ export class AdminService {
     return this.run(() => api.get<AdminStudent[]>(`/admin/students${qs(q)}`), (d) => d.students(q));
   }
 
-  updateStudent(studentId: string, patch: { classId?: string | null; left?: boolean }): Promise<AdminStudent> {
+  updateStudent(studentId: string, patch: StudentPatch): Promise<AdminStudent> {
     return this.run(() => api.patch<AdminStudent>(`/admin/students/${studentId}`, patch), (d) => d.updateStudent(studentId, patch));
   }
 
