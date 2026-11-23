@@ -7,11 +7,13 @@ import {
   OPENING_LEAD,
   PHONE_SCREENS,
   PhoneScreen,
+  blendPose,
   devicePose,
   easeInCubic,
   easeInOutCubic,
   easeOutBack,
   easeOutCubic,
+  exitPose,
   laptopScreen,
   lessonChip,
   noteAt,
@@ -71,6 +73,8 @@ const curve = (a: Pt, c: Pt, b: Pt, f: number): Pt => ({
           <div class="drop-flash"></div>
           <div class="bar-glow"></div>
           <div class="wake"></div>
+          <!-- "Get started": on the way to the sign-in panel, the screen becomes the teacher's dashboard shown there. -->
+          <img class="shot exit-shot" src="welcome/teacher-dashboard.webp" alt="" decoding="async" draggable="false" />
           <div class="glare lglare"></div>
           <span class="anchor" data-a="unit" style="left: 36%; top: 41%"></span>
           <span class="anchor" data-a="drop" style="left: 50%; top: 48%"></span>
@@ -224,6 +228,8 @@ export class WelcomeDevices {
   readonly card = input.required<CardView>();
   readonly lang = input<Lang>('en');
   readonly reduced = input(false);
+  /** "Get started": 0 → 1 as the devices travel to their place on the sign-in page (welcome.ts). */
+  readonly exit = input(0);
 
   readonly sunburst = SUNBURST_PATH;
   readonly laptop = LAPTOP_SCREENS.map((k) => ({ k, src: LAPTOP_SRC[k] }));
@@ -257,6 +263,7 @@ export class WelcomeDevices {
       burst: q('.burst'),
       rays: q<SVGPathElement>('.rays'),
       cam: q('.cam'),
+      exitShot: q('.exit-shot'),
       rig: q('.rig'),
       floor: q('.floor'),
       lid: q('.lid'),
@@ -321,8 +328,15 @@ export class WelcomeDevices {
       const tm = opening ? t - OPENING_LEAD : t; // the page's moment, after the laptop has opened
 
       // ---- where the set stands
-      const pose = devicePose(pos, wide, w, h, card, reduced);
+      // "Get started": the set travels to where the sign-in panel's laptops stand (phones: it shrinks away).
+      const ex = clamp(this.exit());
+      const ee = easeInOutCubic(ex);
+      const here = devicePose(pos, wide, w, h, card, reduced);
+      const pose = ex > 0 ? blendPose(here, exitPose(w, h, wide), ee) : here;
       const s = pose.scale;
+      el.cam.style.perspective = ex > 0 ? `${2300 - 600 * ee}px` : '';
+      this.host.nativeElement.style.opacity = ex > 0 && !wide ? String(1 - ee) : '';
+      el.exitShot.style.opacity = String(clamp((ex - 0.25) / 0.5));
       const breathe = reduced ? 0 : Math.sin((sec * 2 * Math.PI) / 6);
       const lift = opening ? (1 - easeOutCubic(span(t, [0, 1.2]))) * 26 : 0;
       el.rig.style.transform = `translate3d(${pose.cx}px, ${pose.cy + lift + breathe * 2}px, 0) scale3d(${s}, ${s}, ${s}) rotateX(${pose.pitch}deg) rotateY(${pose.yaw + breathe * 0.8}deg)`;
@@ -333,7 +347,7 @@ export class WelcomeDevices {
       const i1 = Math.min(PAGES.length - 1, i0 + 1);
       const gcol = mix(PAGES[i0].glow, PAGES[i1].glow, frac);
       const fade = (a: number) => gcol.replace('rgb(', 'rgba(').replace(')', `, ${a})`);
-      const gx = wide ? pose.cx + (105 * s + 22) * pose.side : w / 2;
+      const gx = wide ? lerp(here.cx + (105 * here.scale + 22) * here.side, pose.cx, ee) : w / 2;
       const gy = pose.cy - 230 * s;
       const gs = 640 * s;
       el.glow.style.cssText = `left:${gx - gs / 2}px;top:${gy - gs / 2}px;width:${gs}px;height:${gs}px;background:radial-gradient(circle, ${gcol} 0%, ${fade(0.55)} 55%, ${fade(0)} 100%)`;
@@ -353,8 +367,10 @@ export class WelcomeDevices {
       const phoneIn = opening ? easeOutCubic(span(t, OPENING.phone)) : 1;
       const float = reduced ? 16 : 16 + Math.sin((sec * 2 * Math.PI) / 4.2 + 1) * 4;
       const P = pose.phone;
-      el.phone.style.transform = `translate3d(${P.x}px, ${13 - 334 - float + (1 - phoneIn) * 70}px, ${P.z}px) rotateY(${P.yaw}deg) rotateX(${(1 - phoneIn) * 14}deg) scale3d(${P.scale}, ${P.scale}, ${P.scale})`;
-      el.phone.style.opacity = phoneIn < 1 ? String(phoneIn) : '';
+      el.phone.style.transform = `translate3d(${P.x}px, ${13 - 334 - float + (1 - phoneIn) * 70 + (P.y ?? 0)}px, ${P.z}px) rotateY(${P.yaw}deg) rotateX(${(1 - phoneIn) * 14}deg) scale3d(${P.scale}, ${P.scale}, ${P.scale})`;
+      // Going to sign-in, the phone slips behind the laptop and fades where the second laptop waits.
+      const phoneShown = phoneIn * (1 - clamp((ex - 0.35) / 0.45));
+      el.phone.style.opacity = phoneShown < 1 ? String(phoneShown) : '';
       el.pglare.style.backgroundPosition = `${50 + (pose.yaw + P.yaw) * 2.5}% 0`;
 
       // ---- the floor: a pool of light and the two soft shadows
@@ -382,7 +398,8 @@ export class WelcomeDevices {
 
       // ---- the page's moment
       const fx = el.fx.getBoundingClientRect();
-      const settled = 1 - clamp(Math.abs(pos - k) * 8); // moments and notes give way as soon as the page moves
+      // Moments and notes give way as soon as the page moves, or "Get started" is pressed.
+      const settled = (1 - clamp(Math.abs(pos - k) * 8)) * (1 - clamp(ex * 4));
 
       // Page 1: the lesson lifts off the laptop and lands on the child's path.
       const m1 = MOMENTS.pocket;
@@ -451,7 +468,7 @@ export class WelcomeDevices {
       } else hide(el.star);
       const g3 = span(tm, m3.glow);
       el.barGlow.style.opacity =
-        k === 2 && tm >= m3.glow[0] ? String(reduced ? 0.35 : g3 < 1 ? Math.sin(Math.PI * g3) * 0.9 + 0.1 * g3 : 0.35 + 0.15 * Math.sin(sec * 5)) : '0';
+        k === 2 && tm >= m3.glow[0] ? String((reduced ? 0.35 : g3 < 1 ? Math.sin(Math.PI * g3) * 0.9 + 0.1 * g3 : 0.35 + 0.15 * Math.sin(sec * 5)) * (1 - clamp(ex * 3))) : '0';
 
       // ---- the message card of this page, beside the devices (above them on phones)
       const artMin = card.x > 0 ? 16 : card.width + 60;

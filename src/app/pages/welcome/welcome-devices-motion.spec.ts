@@ -6,7 +6,9 @@ import {
   PHONE_SCREENS,
   SET_H,
   SET_W,
+  blendPose,
   devicePose,
+  exitPose,
   laptopScreen,
   lessonChip,
   noteAt,
@@ -100,5 +102,20 @@ describe('welcome devices', () => {
     expect(noteAt(0)).toBeGreaterThan(MOMENTS.pocket.fly[1] - 0.5);
     expect(noteAt(1)).toBeGreaterThan(MOMENTS.make.created);
     expect(noteAt(2)).toBeGreaterThan(MOMENTS.shine.star[1] - 0.5);
+  });
+
+  it('lands the laptop where the sign-in panel’s front laptop stands, facing straight on, the phone behind it', () => {
+    const end = exitPose(1440, 900, true);
+    expect(end.cx).toBe(300); // the middle of the 600 px green panel
+    expect(end.yaw).toBe(0);
+    expect(end.pitch).toBe(-16); // the sign-in camera
+    expect(end.phone.z).toBeLessThan(-200); // behind the laptop, where the second laptop waits
+    const start = devicePose(2, true, 1440, 900, cardAt(2, 1440));
+    const half = blendPose(start, end, 0.5);
+    expect(half.cx).toBeCloseTo((start.cx + end.cx) / 2);
+    expect(half.scale).toBeCloseTo((start.scale + end.scale) / 2);
+    expect(half.phone.y).toBeCloseTo(end.phone.y! / 2);
+    // Phones: the sign-in header has no pictures, so the devices shrink away.
+    expect(exitPose(390, 460, false).scale).toBeLessThan(0.2);
   });
 });

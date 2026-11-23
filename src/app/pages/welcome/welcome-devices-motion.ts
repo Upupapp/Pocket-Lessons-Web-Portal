@@ -28,8 +28,8 @@ export interface DevicePose {
   pitch: number;
   /** +1: the phone stands on the right of the laptop; -1: on the left. In between while gliding. */
   side: number;
-  /** The phone, relative to the laptop's hinge (before the set's scale). */
-  phone: { x: number; z: number; yaw: number; scale: number };
+  /** The phone, relative to the laptop's hinge (before the set's scale); y lifts it (negative = up). */
+  phone: { x: number; y?: number; z: number; yaw: number; scale: number };
 }
 
 /** How wide the set is at scale 1 (laptop plus the phone beside it) and how tall (lid top to the deck's front). */
@@ -77,6 +77,45 @@ export function devicePose(pos: number, wide: boolean, w: number, h: number, car
     pitch: -11,
     side: 1,
     phone: { x: 250, z: 220, yaw: -14, scale: 1 },
+  };
+}
+
+// ---------------------------------------------------------------- "Get started": onto the sign-in page
+
+/**
+ * Where the devices end up as the last page turns into the sign-in page. Wide screens: the laptop lands where the
+ * sign-in panel's front laptop stands (the panel is 5/12 of the width; its picture area runs from 106 px down to
+ * 204 px above the bottom; that laptop is 1.18 × the pair's scale), facing straight on; the phone goes behind it,
+ * to where the second laptop waits. Phones: the sign-in header has no pictures, so the devices shrink away.
+ */
+export function exitPose(w: number, h: number, wide: boolean): DevicePose {
+  if (!wide) return { cx: w / 2, cy: h * 0.22, scale: 0.12, yaw: 0, pitch: -16, side: 1, phone: { x: 250, z: 220, yaw: -14, scale: 1 } };
+  const panel = (w * 5) / 12;
+  const artTop = 106;
+  const artH = Math.max(260, h - 310);
+  const s = Math.min((panel - 80) / 1170, artH / 720, 0.62);
+  return {
+    cx: panel / 2,
+    cy: artTop + 0.6 * artH,
+    scale: s * 1.18,
+    yaw: 0,
+    pitch: -16,
+    side: 1,
+    phone: { x: 122, y: -67, z: -233, yaw: -8, scale: 0.75 },
+  };
+}
+
+/** A pose between two (e = 0..1). */
+export function blendPose(a: DevicePose, b: DevicePose, e: number): DevicePose {
+  const l = (x: number, y: number) => x + (y - x) * e;
+  return {
+    cx: l(a.cx, b.cx),
+    cy: l(a.cy, b.cy),
+    scale: l(a.scale, b.scale),
+    yaw: l(a.yaw, b.yaw),
+    pitch: l(a.pitch, b.pitch),
+    side: a.side,
+    phone: { x: l(a.phone.x, b.phone.x), y: l(a.phone.y ?? 0, b.phone.y ?? 0), z: l(a.phone.z, b.phone.z), yaw: l(a.phone.yaw, b.phone.yaw), scale: l(a.phone.scale, b.phone.scale) },
   };
 }
 
