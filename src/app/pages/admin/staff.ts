@@ -1,23 +1,24 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { AdminCenter, AdminStaff, SetupLinkInfo, STAFF_ROLES, StaffRoleKey, fmtDate } from '../../core/admin-models';
+import { AdminCenter, AdminStaff, SetupLinkInfo, STAFF_ROLES, StaffPatch, StaffRoleKey, fmtDate } from '../../core/admin-models';
 import { AdminService, adminError } from '../../core/admin.service';
 import { Processing } from '../../core/processing';
 import { CopyButton } from '../../shared/copy-button';
 import { Qr } from '../../shared/qr';
+import { FormDialog } from '../../shared/form-dialog';
 
 /** A-05/A-06/W-01 Teachers and staff: add with a one-time setup link, change role, turn off or on. */
 @Component({
   selector: 'pl-admin-staff',
-  imports: [FormsModule, CopyButton, Qr],
+  imports: [FormsModule, CopyButton, Qr, FormDialog],
   template: `
     <div class="page-head">
       <div>
         <h1>Teachers and staff</h1>
         <p>Add a teacher and send them a one-time setup link, or let them join with their center's invitation code.</p>
       </div>
-      <button type="button" class="btn btn-primary" (click)="toggleAdd()">{{ adding() ? 'Close' : '+ Add a teacher' }}</button>
+      <button type="button" class="btn btn-primary" (click)="openAdd()">+ Add a teacher</button>
     </div>
 
     @if (error()) { <p class="adm-msg" role="alert">{{ error() }}</p> }
@@ -40,26 +41,37 @@ import { Qr } from '../../shared/qr';
       </section>
     }
 
-    @if (adding()) {
-      <form class="card adm-gap" (ngSubmit)="add($event)">
-        <h2 class="adm-card-title">Add a teacher</h2>
-        <div class="adm-form-grid">
-          <label class="field"><span>Full name</span><input class="input" name="n" [(ngModel)]="form.name" maxlength="120" placeholder="e.g. Nora Lim" /></label>
-          <label class="field"><span>Email</span><input class="input" type="email" name="e" [(ngModel)]="form.email" maxlength="200" placeholder="nora.lim@aha.example" /></label>
-          <label class="field"><span>Center</span>
-            <select class="select" name="c" [(ngModel)]="form.centerId">
-              <option value="" disabled>Choose a center</option>
-              @for (c of centers(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
-            </select>
-          </label>
-          <label class="field"><span>Role</span>
-            <select class="select" name="r" [(ngModel)]="form.role">
-              @for (r of roles; track r.key) { <option [value]="r.key">{{ r.label }}</option> }
-            </select>
-          </label>
-        </div>
-        <div class="submit"><button class="btn btn-primary" type="submit" [disabled]="busy()">Add and make a setup link</button></div>
-      </form>
+    @if (dialog(); as d) {
+      <pl-form-dialog
+        #fd
+        [title]="d === 'add' ? 'Add a teacher' : 'Change ' + editName"
+        [lead]="d === 'add' ? 'You get a one-time setup link to send them. They choose their own password.' : 'Their lessons and records stay with them.'"
+        (closed)="dialog.set(null)"
+      >
+        <form (ngSubmit)="d === 'add' ? add($event) : saveEdit($event)" novalidate>
+          <div class="dlg-grid">
+            <label class="field"><span>Full name</span><input class="input" name="n" [(ngModel)]="form.name" maxlength="120" placeholder="e.g. Nora Lim" autocomplete="off" /></label>
+            <label class="field"><span>Email</span><input class="input" type="email" name="e" [(ngModel)]="form.email" maxlength="200" placeholder="nora.lim@aha.example" autocomplete="off" /></label>
+            <label class="field"><span>Center</span>
+              <select class="select" name="c" [(ngModel)]="form.centerId">
+                <option value="" disabled>Choose a center</option>
+                @for (c of centers(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+              </select>
+            </label>
+            <label class="field"><span>Role</span>
+              <select class="select" name="r" [(ngModel)]="form.role">
+                @for (r of roles; track r.key) { <option [value]="r.key">{{ r.label }}</option> }
+              </select>
+            </label>
+          </div>
+          @if (d === 'edit' && movingCenter()) { <p class="hint dlg-note">Moving to another center: their classes at {{ editCenter }} keep their children but will need a new teacher.</p> }
+          @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+          <div class="dlg-actions">
+            <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+            <button class="btn btn-primary" type="submit" [disabled]="busy()">{{ d === 'add' ? 'Add and make a setup link' : 'Save changes' }}</button>
+          </div>
+        </form>
+      </pl-form-dialog>
     }
 
     <div class="card adm-table">
@@ -80,11 +92,7 @@ import { Qr } from '../../shared/qr';
               <tr [class.dim]="!s.active">
                 <td><strong>{{ s.name }}</strong><span class="adm-sub">{{ s.email }}</span></td>
                 <td class="small hide-xs">{{ s.center }}</td>
-                <td>
-                  <select class="select sm" [ngModel]="s.roleKey" (ngModelChange)="setRole(s, $event)" [name]="'role-' + s.id" [attr.aria-label]="'Role of ' + s.name" [disabled]="!s.active">
-                    @for (r of roles; track r.key) { <option [value]="r.key">{{ r.label }}</option> }
-                  </select>
-                </td>
+                <td data-label="Role">{{ s.role }}</td>
                 <td class="small hide-xs">{{ s.classes.join(', ') || '—' }}</td>
                 <td class="hide-xs">
                   @if (!s.active) { <span class="pill pill-grey">Turned off</span> }
@@ -93,6 +101,7 @@ import { Qr } from '../../shared/qr';
                 </td>
                 <td>
                   <div class="adm-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="openEdit(s)" [disabled]="busy()">Change</button>
                     @if (s.active && s.setupPending) {
                       <button type="button" class="btn btn-ghost btn-sm" (click)="newLink(s, $event)" [disabled]="busy()">New setup link</button>
                     }
@@ -116,8 +125,6 @@ import { Qr } from '../../shared/qr';
     .result { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
     .text { flex: 1 1 360px; display: grid; gap: 10px; }
     .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .submit { margin-top: 14px; }
-    .select.sm { min-height: 36px; padding: 6px 10px; font-size: 14px; width: auto; }
     tr.dim td { opacity: .6; }
   `,
 })
@@ -131,7 +138,12 @@ export class AdminStaffPage {
   readonly loaded = signal(false);
   readonly error = signal('');
   readonly busy = signal(false);
-  readonly adding = signal(false);
+  readonly dialog = signal<'add' | 'edit' | null>(null);
+  readonly formError = signal('');
+  editId = '';
+  editName = '';
+  editCenter = '';
+  private editCenterId = '';
   readonly link = signal<SetupLinkInfo | null>(null);
   readonly linkFor = signal('');
   readonly center = signal('');
@@ -147,7 +159,7 @@ export class AdminStaffPage {
 
   constructor() {
     const params = inject(ActivatedRoute).snapshot.queryParamMap;
-    if (params.get('add')) this.adding.set(true);
+    if (params.get('add')) this.dialog.set('add');
     if (params.get('center')) this.center.set(params.get('center')!);
     void this.load();
   }
@@ -165,16 +177,32 @@ export class AdminStaffPage {
     }
   }
 
-  toggleAdd(): void {
-    this.adding.set(!this.adding());
+  movingCenter(): boolean {
+    return this.form.centerId !== this.editCenterId && !!this.staff().find((s) => s.id === this.editId)?.classes.length;
+  }
+
+  openAdd(): void {
+    this.form = { name: '', email: '', centerId: this.center() || this.form.centerId || this.centers()[0]?.id || '', role: 'TEACHER' };
     this.link.set(null);
+    this.formError.set('');
+    this.dialog.set('add');
+  }
+
+  openEdit(s: AdminStaff): void {
+    this.editId = s.id;
+    this.editName = s.name;
+    this.editCenter = s.center;
+    this.editCenterId = s.centerId;
+    this.form = { name: s.name, email: s.email, centerId: s.centerId, role: s.roleKey };
+    this.formError.set('');
+    this.dialog.set('edit');
   }
 
   async add(event?: Event): Promise<void> {
-    this.error.set('');
+    this.formError.set('');
     const name = this.form.name.trim();
     const email = this.form.email.trim();
-    if (!name || !email || !this.form.centerId) return this.error.set('Fill in the name, email and center.');
+    if (!name || !email || !this.form.centerId) return this.formError.set('Fill in the name, email and center.');
     const center = this.centers().find((c) => c.id === this.form.centerId)?.name ?? '';
     this.busy.set(true);
     const r = await this.processing.run({
@@ -187,13 +215,44 @@ export class AdminStaffPage {
         this.linkFor.set(res.staff.name);
         this.link.set(res.setupLink);
         this.staff.set(await this.admin.staff());
+        this.dialog.set(null);
       },
       done: { title: `${name} added`, detail: 'The setup link is ready to share' },
     });
     this.busy.set(false);
-    if (!r.ok) return this.error.set(r.error);
-    this.form = { name: '', email: '', centerId: this.form.centerId, role: 'TEACHER' };
-    this.adding.set(false);
+    if (!r.ok) return this.formError.set(r.error);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async saveEdit(event?: Event): Promise<void> {
+    this.formError.set('');
+    const before = this.staff().find((s) => s.id === this.editId);
+    if (!before) return this.formError.set('That staff member was not found.');
+    const name = this.form.name.trim();
+    const email = this.form.email.trim().toLowerCase();
+    if (!name || !email || !this.form.centerId) return this.formError.set('Fill in the name, email and center.');
+    const patch: StaffPatch = {};
+    if (name !== before.name) patch.name = name;
+    if (email !== before.email) patch.email = email;
+    if (this.form.centerId !== before.centerId) patch.centerId = this.form.centerId;
+    if (this.form.role !== before.roleKey) patch.role = this.form.role;
+    if (!Object.keys(patch).length) return this.dialog.set(null);
+    const center = this.centers().find((c) => c.id === this.form.centerId)?.name ?? '';
+    this.busy.set(true);
+    const r = await this.processing.run({
+      title: `Saving ${name}'s details`,
+      detail: `${STAFF_ROLES.find((x) => x.key === this.form.role)?.label ?? ''} · ${center}`,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.updateStaff(before.id, patch);
+        this.staff.update((list) => list.map((x) => (x.id === before.id ? updated : x)));
+        this.dialog.set(null);
+      },
+      done: { title: 'Details saved', detail: name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.formError.set(r.error);
   }
 
   async newLink(s: AdminStaff, event?: Event): Promise<void> {
@@ -221,14 +280,8 @@ export class AdminStaffPage {
     await this.patch(s, { active }, active ? `Turning on ${s.name}'s account` : `Turning off ${s.name}'s account`, active ? 'Account turned on' : 'Account turned off', event);
   }
 
-  async setRole(s: AdminStaff, role: StaffRoleKey): Promise<void> {
-    if (role === s.roleKey) return;
-    const label = STAFF_ROLES.find((r) => r.key === role)?.label ?? role;
-    await this.patch(s, { role }, `Changing ${s.name}'s role`, `Now ${label}`);
-  }
-
   /** Small changes: the loader only shows if the server takes a moment. */
-  private async patch(s: AdminStaff, patch: { role?: StaffRoleKey; active?: boolean }, title: string, doneTitle: string, event?: Event): Promise<void> {
+  private async patch(s: AdminStaff, patch: { active: boolean }, title: string, doneTitle: string, event?: Event): Promise<void> {
     this.busy.set(true);
     this.error.set('');
     const r = await this.processing.run({

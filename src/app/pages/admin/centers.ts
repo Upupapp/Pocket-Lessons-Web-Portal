@@ -5,31 +5,34 @@ import { AdminCenter } from '../../core/admin-models';
 import { AdminService, adminError } from '../../core/admin.service';
 import { Processing } from '../../core/processing';
 import { CopyButton } from '../../shared/copy-button';
+import { FormDialog } from '../../shared/form-dialog';
 
 /** A-03/A-04 Centers and each center's teacher invitation code (copy, new code, turn on or off). */
 @Component({
   selector: 'pl-admin-centers',
-  imports: [FormsModule, RouterLink, CopyButton],
+  imports: [FormsModule, RouterLink, CopyButton, FormDialog],
   template: `
     <div class="page-head">
       <div>
         <h1>Centers and invitation codes</h1>
         <p>Teachers join a center with its invitation code. Turn a code off to allow setup links only.</p>
       </div>
-      <button type="button" class="btn btn-primary" (click)="adding.set(!adding())">{{ adding() ? 'Close' : '+ Add a center' }}</button>
+      <button type="button" class="btn btn-primary" (click)="openAdd()">+ Add a center</button>
     </div>
 
     @if (error()) { <p class="adm-msg" role="alert">{{ error() }}</p> }
 
     @if (adding()) {
-      <form class="card adm-gap" (ngSubmit)="add($event)">
-        <h2 class="adm-card-title">Add a center</h2>
-        <div class="row">
-          <label class="field grow"><span>Center name</span><input class="input" name="n" [(ngModel)]="newName" placeholder="e.g. Better World Navotas" maxlength="120" /></label>
-          <button class="btn btn-primary" type="submit" [disabled]="busy()">Add center</button>
-        </div>
-        <p class="hint">The center gets its own teacher invitation code straight away.</p>
-      </form>
+      <pl-form-dialog #fd title="Add a center" lead="The center gets its own teacher invitation code straight away." (closed)="adding.set(false)">
+        <form (ngSubmit)="add($event)" novalidate>
+          <label class="field"><span>Center name</span><input class="input" name="n" [(ngModel)]="newName" placeholder="e.g. Better World Navotas" maxlength="120" /></label>
+          @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+          <div class="dlg-actions">
+            <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+            <button class="btn btn-primary" type="submit" [disabled]="busy()">Add center</button>
+          </div>
+        </form>
+      </pl-form-dialog>
     }
 
     <div class="cards">
@@ -66,8 +69,6 @@ import { CopyButton } from '../../shared/copy-button';
     </div>
   `,
   styles: `
-    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
-    .grow { flex: 1 1 280px; }
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .center h2 { font-family: var(--serif); font-size: 21px; }
     .counts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 16px; font-size: 14px; }
@@ -89,6 +90,7 @@ export class AdminCentersPage {
   readonly error = signal('');
   readonly busy = signal(false);
   readonly adding = signal(false);
+  readonly formError = signal('');
   newName = '';
 
   constructor() {
@@ -103,10 +105,16 @@ export class AdminCentersPage {
     }
   }
 
+  openAdd(): void {
+    this.newName = '';
+    this.formError.set('');
+    this.adding.set(true);
+  }
+
   async add(event?: Event): Promise<void> {
-    this.error.set('');
+    this.formError.set('');
     const name = this.newName.trim();
-    if (name.length < 2) return this.error.set('Enter the center name.');
+    if (name.length < 2) return this.formError.set('Enter the center name.');
     this.busy.set(true);
     let made = false;
     const r = await this.processing.run({
@@ -118,13 +126,12 @@ export class AdminCentersPage {
         if (!made) await this.admin.createCenter(name);
         made = true;
         await this.load();
+        this.adding.set(false);
       },
       done: () => ({ title: 'Center added', detail: `${name} · invitation code ${this.centers().find((c) => c.name === name)?.invitationCode ?? 'ready'}` }),
     });
     this.busy.set(false);
-    if (!r.ok) return this.error.set(r.error);
-    this.newName = '';
-    this.adding.set(false);
+    if (!r.ok) this.formError.set(r.error);
   }
 
   async invitation(c: AdminCenter, action: 'new' | 'on' | 'off', event?: Event): Promise<void> {

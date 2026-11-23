@@ -7,11 +7,12 @@ import { DataService } from '../../core/data.service';
 import { LEVELS, Learner, levelIndex } from '../../core/models';
 import { Processing } from '../../core/processing';
 import { LineChart, LinePoint } from '../../shared/charts/line-chart';
+import { FormDialog } from '../../shared/form-dialog';
 
 /** Learner profile with reading-level path, reading speed and check history (WEB-03). */
 @Component({
   selector: 'pl-learner-detail',
-  imports: [RouterLink, DatePipe, FormsModule, LineChart],
+  imports: [RouterLink, DatePipe, FormsModule, LineChart, FormDialog],
   template: `
     @if (learner(); as l) {
       <a routerLink="/app/learners" class="back">← All learners</a>
@@ -30,18 +31,23 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
       </div>
 
       @if (editing(); as e) {
-        <form class="card edit" (ngSubmit)="saveEdit($event)">
-          <label class="field"><span>Name</span><input class="input" name="n" [(ngModel)]="e.name" required /></label>
-          <label class="field"><span>Grade</span>
-            <select class="select" name="g" [(ngModel)]="e.grade">@for (g of [1, 2, 3, 4]; track g) { <option [ngValue]="g">Grade {{ g }}</option> }</select>
-          </label>
-          <label class="field"><span>Caregiver</span><input class="input" name="c" [(ngModel)]="e.caregiver" /></label>
-          <div class="row end">
-            <button type="button" class="btn btn-danger btn-sm" (click)="remove(l, $event)">Remove learner</button>
-            <button type="button" class="btn btn-ghost" (click)="editing.set(null)">Cancel</button>
-            <button type="submit" class="btn btn-primary">Save</button>
-          </div>
-        </form>
+        <pl-form-dialog #fd [title]="'Change ' + l.name" lead="Their reading level changes with each reading-level check." (closed)="editing.set(null)">
+          <form (ngSubmit)="saveEdit($event)" novalidate>
+            <div class="dlg-grid">
+              <label class="field span"><span>Name</span><input class="input" name="n" [(ngModel)]="e.name" maxlength="60" autocomplete="off" /></label>
+              <label class="field"><span>Grade</span>
+                <select class="select" name="g" [(ngModel)]="e.grade">@for (g of [1, 2, 3, 4]; track g) { <option [ngValue]="g">Grade {{ g }}</option> }</select>
+              </label>
+              <label class="field"><span>Caregiver who holds the phone</span><input class="input" name="c" [(ngModel)]="e.caregiver" maxlength="80" /></label>
+            </div>
+            @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+            <div class="dlg-actions">
+              <button type="button" class="btn btn-danger start" (click)="remove(l, $event)">Remove learner</button>
+              <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+              <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+          </form>
+        </pl-form-dialog>
       }
 
       <section class="card">
@@ -110,8 +116,6 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
     .row { display: flex; gap: 10px; flex-wrap: wrap; }
     .table-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
     .table-scroll td:first-child { white-space: nowrap; }
-    .end { justify-content: flex-end; grid-column: 1 / -1; }
-    .edit { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
     section { margin-bottom: 20px; }
     h2 { font-family: var(--serif); font-size: 20px; margin-bottom: 16px; }
     .path { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); position: relative; }
@@ -125,7 +129,7 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
     .lv { font-weight: 700; font-size: 14px; }
     .tag { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--cream-2); color: var(--muted); }
     .now-tag { background: var(--accent-tint); color: var(--title); border: 1px solid var(--accent-tint-2); }
-    @media (max-width: 700px) { .edit { grid-template-columns: 1fr; } .lv { font-size: 12px; } }
+    @media (max-width: 700px) { .lv { font-size: 12px; } }
   `,
 })
 export class LearnerDetail {
@@ -142,6 +146,7 @@ export class LearnerDetail {
     return first ? levelIndex(first.previousLevel ?? first.level) : -1;
   });
   readonly editing = signal<Learner | null>(null);
+  readonly formError = signal('');
 
   /** This child's timed readings, oldest first. */
   readonly speed = computed<LinePoint[]>(() =>
@@ -160,23 +165,30 @@ export class LearnerDetail {
   });
 
   startEdit(l: Learner): void {
+    this.formError.set('');
     this.editing.set({ ...l });
   }
 
-  saveEdit(event?: Event): void {
+  async saveEdit(event?: Event): Promise<void> {
     const e = this.editing();
-    if (!e || !e.name.trim()) return;
+    if (!e) return;
     const name = e.name.trim();
-    this.data.updateLearner({ ...e, name });
-    // A quick save: the loader only shows if the server takes a moment.
-    void this.processing.run({
+    if (!name) return this.formError.set('Enter the child’s name.');
+    this.formError.set('');
+    let saved = false;
+    await this.processing.run({
       title: `Saving ${name}'s details`,
+      detail: `Grade ${e.grade}${e.caregiver.trim() ? ' · ' + e.caregiver.trim() : ''}`,
       from: event,
-      quick: true,
-      run: () => this.data.flush(),
+      run: async () => {
+        // Saved in this browser first; the pop-up closes under the loader while it is sent on.
+        if (!saved) this.data.updateLearner({ ...e, name, caregiver: e.caregiver.trim() });
+        saved = true;
+        this.editing.set(null);
+        await this.data.flush();
+      },
       done: { title: 'Details saved', detail: name },
     });
-    this.editing.set(null);
   }
 
   async remove(l: Learner, event?: Event): Promise<void> {

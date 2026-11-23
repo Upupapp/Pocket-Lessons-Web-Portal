@@ -5,26 +5,27 @@ import { AdminCenter, AdminClass, AdminStaff } from '../../core/admin-models';
 import { AdminService, adminError } from '../../core/admin.service';
 import { LEVELS, uid } from '../../core/models';
 import { Processing } from '../../core/processing';
+import { FormDialog } from '../../shared/form-dialog';
 
 /** A-07 Classes per center, each with a teacher from the same center. */
 @Component({
   selector: 'pl-admin-classes',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, FormDialog],
   template: `
     <div class="page-head">
       <div>
         <h1>Classes</h1>
         <p>Groups of children at a center, with their program, level, schedule and teacher.</p>
       </div>
-      <button type="button" class="btn btn-primary" (click)="startNew()">{{ editing() ? 'Close' : '+ New class' }}</button>
+      <button type="button" class="btn btn-primary" (click)="startNew()">+ New class</button>
     </div>
 
     @if (error()) { <p class="adm-msg" role="alert">{{ error() }}</p> }
 
     @if (editing()) {
-      <form class="card adm-gap" (ngSubmit)="save($event)">
-        <h2 class="adm-card-title">{{ editId ? 'Change the class' : 'New class' }}</h2>
-        <div class="adm-form-grid">
+      <pl-form-dialog #fd [title]="editId ? 'Change ' + editName : 'New class'" [lead]="editId ? 'Its children stay in the class.' : 'A group of children at one center, with its program, level, schedule and teacher.'" (closed)="editing.set(false)">
+        <form (ngSubmit)="save($event)" novalidate>
+        <div class="dlg-grid">
           <label class="field"><span>Center</span>
             <select class="select" name="c" [(ngModel)]="form.centerId" (ngModelChange)="form.teacherId = null">
               @for (c of centers(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
@@ -45,8 +46,13 @@ import { Processing } from '../../core/processing';
             </select>
           </label>
         </div>
-        <div class="submit"><button class="btn btn-primary" type="submit" [disabled]="busy()">Save class</button></div>
-      </form>
+        @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+        <div class="dlg-actions">
+          <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+          <button class="btn btn-primary" type="submit" [disabled]="busy()">{{ editId ? 'Save changes' : 'Add class' }}</button>
+        </div>
+        </form>
+      </pl-form-dialog>
     }
 
     <div class="card adm-table">
@@ -72,7 +78,7 @@ import { Processing } from '../../core/processing';
                 <td class="small hide-xs">{{ c.center }}</td>
                 <td>
                   <div class="adm-actions">
-                    <button type="button" class="btn btn-ghost btn-sm" (click)="edit(c)">Change</button>
+                    <button type="button" class="btn btn-ghost btn-sm" (click)="edit(c)" [disabled]="busy()">Change</button>
                     <button type="button" class="btn btn-danger btn-sm" (click)="remove(c, $event)" [disabled]="busy()">Remove</button>
                   </div>
                 </td>
@@ -85,7 +91,6 @@ import { Processing } from '../../core/processing';
       }
     </div>
   `,
-  styles: `.submit { margin-top: 14px; }`,
 })
 export class AdminClassesPage {
   private readonly admin = inject(AdminService);
@@ -98,8 +103,10 @@ export class AdminClassesPage {
   readonly error = signal('');
   readonly busy = signal(false);
   readonly editing = signal(false);
+  readonly formError = signal('');
   readonly center = signal('');
   editId = '';
+  editName = '';
   form = this.blank();
 
   readonly rows = computed(() => this.classes().filter((c) => !this.center() || c.centerId === this.center()));
@@ -134,22 +141,24 @@ export class AdminClassesPage {
   }
 
   startNew(): void {
-    if (this.editing()) return this.editing.set(false);
     this.editId = '';
+    this.editName = '';
     this.form = { ...this.blank(), centerId: this.center() || this.centers()[0]?.id || '' };
+    this.formError.set('');
     this.editing.set(true);
   }
 
   edit(c: AdminClass): void {
     this.editId = c.id;
+    this.editName = c.name;
     this.form = { centerId: c.centerId, name: c.name, program: c.program, level: c.level, schedule: c.schedule, teacherId: c.teacherId };
+    this.formError.set('');
     this.editing.set(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async save(event?: Event): Promise<void> {
-    this.error.set('');
-    if (!this.form.centerId || !this.form.name.trim() || !this.form.program.trim()) return this.error.set('Fill in the center, class name and program.');
+    this.formError.set('');
+    if (!this.form.centerId || !this.form.name.trim() || !this.form.program.trim()) return this.formError.set('Fill in the center, class name and program.');
     const id = this.editId || uid('cls');
     const name = this.form.name.trim();
     const isNew = !this.editId;
@@ -162,12 +171,12 @@ export class AdminClassesPage {
       run: async () => {
         await this.admin.saveClass(id, { ...this.form });
         this.classes.set(await this.admin.classes());
+        this.editing.set(false);
       },
       done: { title: isNew ? 'Class added' : 'Class saved', detail: name },
     });
     this.busy.set(false);
-    if (!r.ok) return this.error.set(r.error);
-    this.editing.set(false);
+    if (!r.ok) this.formError.set(r.error);
   }
 
   async remove(c: AdminClass, event?: Event): Promise<void> {

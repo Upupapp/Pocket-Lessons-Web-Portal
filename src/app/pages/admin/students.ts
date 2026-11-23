@@ -1,22 +1,57 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { AdminCenter, AdminClass, AdminStudent } from '../../core/admin-models';
-import { KidAvatar } from '../../shared/kid-avatar';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AVATARS, AdminCenter, AdminClass, AdminStudent, StudentPatch } from '../../core/admin-models';
+import { KidAvatar, avatarLabel } from '../../shared/kid-avatar';
+import { FormDialog } from '../../shared/form-dialog';
 import { AdminService, adminError } from '../../core/admin.service';
 import { Processing } from '../../core/processing';
 
 /** A-16 Students in every center: move to another class, mark as left (records are kept). */
 @Component({
   selector: 'pl-admin-students',
-  imports: [FormsModule, KidAvatar],
+  imports: [FormsModule, KidAvatar, RouterLink, FormDialog],
   template: `
     <div class="page-head">
       <div>
         <h1>Students</h1>
         <p>Every child in the program. Children are added with their family, or by their parent on the phone.</p>
       </div>
+      <a class="btn btn-primary" routerLink="/admin/families" [queryParams]="{ add: 1 }">+ Add a family</a>
     </div>
+
+    @if (editing(); as e) {
+      <pl-form-dialog #fd [title]="'Change ' + e.name" [lead]="e.center + (e.parentName ? ' · parent: ' + e.parentName : '')" (closed)="editing.set(null)">
+        <form (ngSubmit)="saveEdit($event)" novalidate>
+          <div class="dlg-grid">
+            <label class="field"><span>First name</span><input class="input" name="n" [(ngModel)]="form.name" maxlength="60" autocomplete="off" /></label>
+            <label class="field"><span>Grade</span>
+              <select class="select" name="g" [(ngModel)]="form.grade">
+                @for (g of [1, 2, 3, 4]; track g) { <option [ngValue]="g">Grade {{ g }}</option> }
+              </select>
+            </label>
+            <label class="field"><span>Class</span>
+              <select class="select" name="c" [(ngModel)]="form.classId">
+                <option [ngValue]="null">No class</option>
+                @for (c of classesFor(e.centerId); track c.id) { <option [ngValue]="c.id">{{ c.name }} · {{ c.program }}</option> }
+              </select>
+            </label>
+            <label class="field"><span>Avatar</span>
+              <select class="select" name="a" [(ngModel)]="form.avatar">
+                <option [ngValue]="null">The child picks on the phone</option>
+                @for (a of avatars; track a) { <option [ngValue]="a">{{ avatarName(a) }}</option> }
+              </select>
+            </label>
+          </div>
+          <p class="hint dlg-note">Reading level: <span class="lvl" [attr.data-level]="e.level">{{ e.level }}</span> · it changes with the teacher's reading checks.</p>
+          @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+          <div class="dlg-actions">
+            <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+            <button class="btn btn-primary" type="submit" [disabled]="busy()">Save changes</button>
+          </div>
+        </form>
+      </pl-form-dialog>
+    }
 
     @if (error()) { <p class="adm-msg" role="alert">{{ error() }}</p> }
 
@@ -52,16 +87,14 @@ import { Processing } from '../../core/processing';
                 </td>
                 <td class="hide-xs">{{ s.grade }}</td>
                 <td><span class="lvl" [attr.data-level]="s.level">{{ s.level }}</span></td>
-                <td>
-                  <select class="select sm" [ngModel]="s.classId" (ngModelChange)="move(s, $event)" [name]="'cls-' + s.id" [attr.aria-label]="'Class of ' + s.name" [disabled]="s.left || busy()">
-                    <option [ngValue]="null">No class</option>
-                    @for (c of classesFor(s.centerId); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
-                  </select>
-                </td>
+                <td data-label="Class">{{ s.className || 'No class' }}</td>
                 <td class="small hide-xs">{{ s.parentName || '—' }}</td>
                 <td class="small hide-xs hide-md">{{ s.center }}</td>
                 <td>
                   <div class="adm-actions">
+                    @if (!s.left) {
+                      <button type="button" class="btn btn-ghost btn-sm" (click)="openEdit(s)" [disabled]="busy()">Change</button>
+                    }
                     @if (s.left) {
                       <button type="button" class="btn btn-ghost btn-sm" (click)="setLeft(s, false, $event)" [disabled]="busy()">Back in the program</button>
                     } @else {
@@ -80,7 +113,6 @@ import { Processing } from '../../core/processing';
   `,
   styles: `
     .count { padding: 0 12px 6px; }
-    .select.sm { min-height: 36px; padding: 6px 10px; font-size: 14px; width: auto; }
     .by { margin-left: 6px; }
     .adm-avatar { margin-right: 6px; }
     tr.dim td { opacity: .6; }
@@ -99,6 +131,11 @@ export class AdminStudentsPage {
   readonly klass = signal('');
   readonly q = signal('');
   readonly showLeft = signal(false);
+  readonly editing = signal<AdminStudent | null>(null);
+  readonly formError = signal('');
+  readonly avatars = AVATARS;
+  readonly avatarName = avatarLabel;
+  form = { name: '', grade: 1, classId: null as string | null, avatar: null as string | null };
 
   readonly rows = computed(() => {
     const q = this.q().trim().toLowerCase();
@@ -135,10 +172,40 @@ export class AdminStudentsPage {
     }
   }
 
-  async move(s: AdminStudent, classId: string | null): Promise<void> {
-    if (classId === s.classId) return;
-    const to = this.classes().find((c) => c.id === classId)?.name ?? 'no class';
-    await this.patch(s, { classId }, `Moving ${s.name}`, `Now in ${to}`);
+  openEdit(s: AdminStudent): void {
+    this.form = { name: s.name, grade: s.grade, classId: s.classId, avatar: s.avatar };
+    this.formError.set('');
+    this.editing.set(s);
+  }
+
+  async saveEdit(event?: Event): Promise<void> {
+    const s = this.editing();
+    if (!s) return;
+    this.formError.set('');
+    const name = this.form.name.trim();
+    if (!name) return this.formError.set("Enter the child's first name.");
+    const patch: StudentPatch = {};
+    if (name !== s.name) patch.name = name;
+    if (this.form.grade !== s.grade) patch.grade = this.form.grade;
+    if (this.form.classId !== s.classId) patch.classId = this.form.classId;
+    if (this.form.avatar !== s.avatar) patch.avatar = this.form.avatar;
+    if (!Object.keys(patch).length) return this.editing.set(null);
+    const klass = this.classes().find((c) => c.id === this.form.classId)?.name ?? 'No class';
+    this.busy.set(true);
+    const r = await this.processing.run({
+      title: `Saving ${name}'s details`,
+      detail: `Grade ${this.form.grade} · ${klass} · ${s.center}`,
+      from: event,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.updateStudent(s.id, patch);
+        this.students.update((list) => list.map((x) => (x.id === s.id ? updated : x)));
+        this.editing.set(null);
+      },
+      done: { title: 'Details saved', detail: patch.classId !== undefined ? `${name} · now in ${klass}` : name },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.formError.set(r.error);
   }
 
   async setLeft(s: AdminStudent, left: boolean, event?: Event): Promise<void> {
@@ -147,7 +214,7 @@ export class AdminStudentsPage {
   }
 
   /** Small changes: the loader only shows if the server takes a moment. */
-  private async patch(s: AdminStudent, patch: { classId?: string | null; left?: boolean }, title: string, doneTitle: string, event?: Event): Promise<void> {
+  private async patch(s: AdminStudent, patch: { left: boolean }, title: string, doneTitle: string, event?: Event): Promise<void> {
     this.busy.set(true);
     this.error.set('');
     const r = await this.processing.run({

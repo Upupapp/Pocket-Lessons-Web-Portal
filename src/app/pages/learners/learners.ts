@@ -4,24 +4,25 @@ import { RouterLink } from '@angular/router';
 import { DataService } from '../../core/data.service';
 import { LEVELS, LEVEL_HINT, Level, daysSince } from '../../core/models';
 import { Processing } from '../../core/processing';
+import { FormDialog } from '../../shared/form-dialog';
 
 /** Learners and reading-level groups (WEB-02). */
 @Component({
   selector: 'pl-learners',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, FormDialog],
   template: `
     <div class="page-head">
       <div>
         <h1>Learners and reading groups</h1>
         <p>Children are grouped by reading level, not by grade. Lessons go to the group.</p>
       </div>
-      <button type="button" class="btn btn-primary" (click)="adding.set(!adding())">{{ adding() ? 'Close' : '+ Add learner' }}</button>
+      <button type="button" class="btn btn-primary" (click)="openAdd()">+ Add learner</button>
     </div>
 
     @if (adding()) {
-      <form class="card add" (ngSubmit)="add($event)">
-        <h2>Add a learner</h2>
-        <div class="add-grid">
+      <pl-form-dialog #fd title="Add a learner" lead="Children are grouped by reading level. A reading-level check sets it properly." (closed)="adding.set(false)">
+      <form (ngSubmit)="add($event)" novalidate>
+        <div class="dlg-grid">
           <label class="field"><span>Child's name</span><input class="input" name="n" [(ngModel)]="form.name" required maxlength="60" /></label>
           <label class="field"><span>Grade</span>
             <select class="select" name="g" [(ngModel)]="form.grade">
@@ -36,9 +37,13 @@ import { Processing } from '../../core/processing';
           </label>
           <label class="field"><span>Caregiver who holds the phone</span><input class="input" name="c" [(ngModel)]="form.caregiver" placeholder="e.g. Lorna Santos (mother)" maxlength="80" /></label>
         </div>
-        @if (formError()) { <p class="error-text">{{ formError() }}</p> }
-        <div class="row"><button class="btn btn-primary" type="submit">Save learner</button></div>
+        @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+        <div class="dlg-actions">
+          <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+          <button class="btn btn-primary" type="submit">Add learner</button>
+        </div>
       </form>
+      </pl-form-dialog>
     }
 
     <div class="groups" role="tablist" aria-label="Reading level groups">
@@ -82,10 +87,6 @@ import { Processing } from '../../core/processing';
     </div>
   `,
   styles: `
-    h2 { font-family: var(--serif); font-size: 20px; margin-bottom: 14px; }
-    .add { margin-bottom: 20px; }
-    .add-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-    .row { margin-top: 14px; }
     .groups { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
     .group { border: 1px solid var(--line); background: var(--white); border-radius: var(--r-md); padding: 12px; text-align: left; cursor: pointer; display: grid; font: 400 13px var(--font); color: var(--muted); }
     .group strong { font: 600 24px var(--font); color: var(--ink); }
@@ -96,7 +97,7 @@ import { Processing } from '../../core/processing';
     .tools .input { max-width: 280px; }
     .name { font-weight: 700; text-decoration: none; }
     .end { text-align: right; }
-    @media (max-width: 960px) { .add-grid { grid-template-columns: 1fr 1fr; } .groups { grid-template-columns: repeat(3, 1fr); } .hide-sm { display: none; } }
+    @media (max-width: 960px) { .groups { grid-template-columns: repeat(3, 1fr); } .hide-sm { display: none; } }
   `,
 })
 export class Learners {
@@ -123,22 +124,32 @@ export class Learners {
       .sort((a, b) => a.l.name.localeCompare(b.l.name));
   });
 
+  openAdd(): void {
+    this.form = { name: '', grade: 1, level: 'Beginner', caregiver: '' };
+    this.formError.set('');
+    this.adding.set(true);
+  }
+
   async add(event?: Event): Promise<void> {
     if (!this.form.name.trim()) {
       this.formError.set('Enter the child’s name.');
       return;
     }
     const child = { ...this.form, name: this.form.name.trim(), caregiver: this.form.caregiver.trim() };
-    this.data.addLearner(child);
     this.formError.set('');
+    let added = false;
     await this.processing.run({
       title: `Adding ${child.name}`,
       detail: `Grade ${child.grade} · ${child.level} level`,
       from: event,
-      run: () => this.data.flush(),
+      run: async () => {
+        // Saved in this browser first; the pop-up closes under the loader while it is sent on.
+        if (!added) this.data.addLearner(child);
+        added = true;
+        this.adding.set(false);
+        await this.data.flush();
+      },
       done: { title: `${child.name} added`, detail: `${child.level} level · Grade ${child.grade}` },
     });
-    this.form = { name: '', grade: 1, level: 'Beginner', caregiver: '' };
-    this.adding.set(false);
   }
 }

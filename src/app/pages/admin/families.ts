@@ -7,6 +7,7 @@ import { AdminService, adminError } from '../../core/admin.service';
 import { plural } from '../../core/models';
 import { Processing } from '../../core/processing';
 import { CopyButton } from '../../shared/copy-button';
+import { FormDialog } from '../../shared/form-dialog';
 
 interface ChildRow {
   name: string;
@@ -18,14 +19,14 @@ interface ChildRow {
 /** A-10/A-11/A-12 Parents and families: add a parent with children, print the activation code, new code, reset PIN. */
 @Component({
   selector: 'pl-admin-families',
-  imports: [FormsModule, CopyButton, KidAvatar],
+  imports: [FormsModule, CopyButton, KidAvatar, FormDialog],
   template: `
     <div class="page-head no-print">
       <div>
         <h1>Parents and families</h1>
         <p>One account per family. The parent links the phone once with a 6-digit code, then keeps their own 3-digit PIN.</p>
       </div>
-      <button type="button" class="btn btn-primary" (click)="toggleAdd()">{{ adding() ? 'Close' : '+ Add a family' }}</button>
+      <button type="button" class="btn btn-primary" (click)="openAdd()">+ Add a family</button>
     </div>
 
     @if (error()) { <p class="adm-msg no-print" role="alert">{{ error() }}</p> }
@@ -45,16 +46,16 @@ interface ChildRow {
     }
 
     @if (adding()) {
-      <form class="card adm-gap no-print" (ngSubmit)="add($event)">
-        <h2 class="adm-card-title">Add a family</h2>
-        <div class="adm-form-grid">
+      <pl-form-dialog #fd class="no-print" title="Add a family" lead="A parent and their children. You get a 6-digit code for the parent's phone." [wide]="true" (closed)="adding.set(false)">
+      <form (ngSubmit)="add($event)" novalidate>
+        <div class="dlg-grid three">
           <label class="field"><span>Center</span>
             <select class="select" name="c" [(ngModel)]="form.centerId" (ngModelChange)="clearClasses()">
               @for (c of centers(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
             </select>
           </label>
           <label class="field"><span>Parent's name</span><input class="input" name="p" [(ngModel)]="form.parentName" placeholder="e.g. Mercy Santos" maxlength="120" /></label>
-          <label class="field"><span>Phone number (optional)</span><input class="input" name="ph" [(ngModel)]="form.phone" placeholder="0917 …" maxlength="40" /></label>
+          <label class="field"><span>Phone number (optional)</span><input class="input" name="ph" [(ngModel)]="form.phone" placeholder="0917 …" maxlength="40" inputmode="tel" /></label>
         </div>
         <h3 class="kids-title">Children</h3>
         <div class="kids">
@@ -87,9 +88,14 @@ interface ChildRow {
         @if (form.children.length < 8) {
           <button type="button" class="btn btn-ghost btn-sm" (click)="form.children.push(blankChild())">+ Add another child</button>
         }
-        <p class="hint">Parents can also add more children themselves on the phone, even without signal. Those children are approved automatically.</p>
-        <div class="submit"><button class="btn btn-primary" type="submit" [disabled]="busy()">Add family and make the code</button></div>
+        <p class="hint dlg-note">Parents can also add more children themselves on the phone, even without signal. Those children are approved automatically.</p>
+        @if (formError()) { <p class="dlg-error" role="alert">{{ formError() }}</p> }
+        <div class="dlg-actions">
+          <button type="button" class="btn btn-ghost" (click)="fd.close()">Cancel</button>
+          <button class="btn btn-primary" type="submit" [disabled]="busy()">Add family and make the code</button>
+        </div>
       </form>
+      </pl-form-dialog>
     }
 
     <div class="card adm-table no-print">
@@ -153,12 +159,13 @@ interface ChildRow {
     .row-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
     .kids-title { font-size: 15px; margin: 18px 0 8px; }
     .kids { display: grid; gap: 10px; margin-bottom: 10px; }
-    .kid { display: grid; grid-template-columns: 1.4fr .8fr 1.4fr 1.4fr auto; gap: 10px; align-items: end; background: var(--cream); border-radius: var(--r-md); padding: 10px; }
+    .kid { display: grid; grid-template-columns: minmax(0, 1.2fr) 118px minmax(0, 1.3fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; background: var(--cream); border-radius: var(--r-md); padding: 10px; }
     .remove { align-self: end; }
-    .submit { margin-top: 14px; }
+    .dlg-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .tag { font-size: 11px; font-weight: 700; color: var(--amber); background: var(--sun-soft); border-radius: 999px; padding: 1px 6px; }
-    @media (max-width: 960px) { .kid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 760px) { .kid { grid-template-columns: 1fr 1fr; } .dlg-grid.three { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .kid, .dlg-grid.three { grid-template-columns: 1fr; } .remove { justify-self: start; } }
     @media print { .code-card { border: 2px solid #000; box-shadow: none; margin: 40px auto; max-width: 520px; } }
   `,
 })
@@ -175,6 +182,7 @@ export class AdminFamiliesPage {
   readonly error = signal('');
   readonly busy = signal(false);
   readonly adding = signal(false);
+  readonly formError = signal('');
   readonly code = signal<ActivationCodeInfo | null>(null);
   readonly codeFamily = signal('');
   readonly center = signal('');
@@ -223,17 +231,19 @@ export class AdminFamiliesPage {
     }
   }
 
-  toggleAdd(): void {
-    this.adding.set(!this.adding());
+  openAdd(): void {
+    this.form = { centerId: this.center() || this.form.centerId, parentName: '', phone: '', children: [this.blankChild()] };
     this.code.set(null);
+    this.formError.set('');
+    this.adding.set(true);
   }
 
   async add(event?: Event): Promise<void> {
-    this.error.set('');
+    this.formError.set('');
     const children = this.form.children.filter((k) => k.name.trim()).map((k) => ({ ...k, name: k.name.trim() }));
     const parent = this.form.parentName.trim();
-    if (!this.form.centerId || !parent) return this.error.set("Fill in the center and the parent's name.");
-    if (!children.length) return this.error.set("Add at least one child's first name.");
+    if (!this.form.centerId || !parent) return this.formError.set("Fill in the center and the parent's name.");
+    if (!children.length) return this.formError.set("Add at least one child's first name.");
     this.busy.set(true);
     const r = await this.processing.run({
       title: `Adding ${parent}'s family`,
@@ -245,13 +255,12 @@ export class AdminFamiliesPage {
         this.codeFamily.set(res.family.parentName);
         this.code.set(res.code);
         this.families.set(await this.admin.families());
+        this.adding.set(false);
       },
       done: () => ({ title: 'Family added', detail: `${parent} · phone code ${this.code()?.code ?? 'ready'}` }),
     });
     this.busy.set(false);
-    if (!r.ok) return this.error.set(r.error);
-    this.form = { centerId: this.form.centerId, parentName: '', phone: '', children: [this.blankChild()] };
-    this.adding.set(false);
+    if (!r.ok) return this.formError.set(r.error);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
