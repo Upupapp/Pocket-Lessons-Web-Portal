@@ -170,26 +170,15 @@ p { margin: 0; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 
-// "Get started" on the last welcome page: the page opens like a window onto the sign-in page (welcome.ts,
-// openWindow). Shutter a is the picture side, cut along the card's wave; shutter b is the card. Both swing away
-// from the middle on their outer hinges (wide screens) or up and down (phones) while sign-in comes forward.
-:root[data-wt]::view-transition-old(root) { animation: none; opacity: 0; }
-:root[data-wt]::view-transition-new(root) { animation: wt-reveal 1s cubic-bezier(.22, .7, .2, 1) both; }
-:root[data-wt]::view-transition-group(wt-a),
-:root[data-wt]::view-transition-group(wt-b) { animation: none; }
-:root[data-wt]::view-transition-image-pair(wt-a) { perspective: 1800px; perspective-origin: var(--wt-po-a); }
-:root[data-wt]::view-transition-image-pair(wt-b) { perspective: 1800px; perspective-origin: var(--wt-po-b); }
-:root[data-wt]::view-transition-old(wt-a) { clip-path: var(--wt-clip); backface-visibility: hidden; }
-:root[data-wt]::view-transition-old(wt-b) { backface-visibility: hidden; }
-:root[data-wt='wide']::view-transition-old(wt-a) { transform-origin: 0 50%; animation: wt-swing-left .95s cubic-bezier(.6, 0, .25, 1) both; }
-:root[data-wt='wide']::view-transition-old(wt-b) { transform-origin: 100% 50%; animation: wt-swing-right .95s cubic-bezier(.6, 0, .25, 1) both; }
-:root[data-wt='narrow']::view-transition-old(wt-a) { transform-origin: 50% 0; animation: wt-swing-up .95s cubic-bezier(.6, 0, .25, 1) both; }
-:root[data-wt='narrow']::view-transition-old(wt-b) { transform-origin: 50% 100%; animation: wt-swing-down .95s cubic-bezier(.6, 0, .25, 1) both; }
-@keyframes wt-swing-left { 80% { opacity: 1; } 100% { transform: rotateY(96deg); filter: brightness(.72); opacity: 0; } }
-@keyframes wt-swing-right { 80% { opacity: 1; } 100% { transform: rotateY(-96deg); filter: brightness(.72); opacity: 0; } }
-@keyframes wt-swing-up { 80% { opacity: 1; } 100% { transform: rotateX(-96deg); filter: brightness(.72); opacity: 0; } }
-@keyframes wt-swing-down { 80% { opacity: 1; } 100% { transform: rotateX(96deg); filter: brightness(.72); opacity: 0; } }
-@keyframes wt-reveal { from { transform: scale(.94); filter: brightness(.9); } }
+// "Get started" on the last welcome page: the page has already turned itself into the sign-in layout (welcome.ts,
+// morphToSignIn); then the real page takes over in a short view transition. The card and the logo settle exactly
+// onto the real ones; everything else fades across, the laptops sitting where the welcome laptop landed.
+:root[data-wt='morph'] pl-sign-in .form-card { view-transition-name: vt-form; }
+:root[data-wt='morph'] pl-sign-in pl-brand-panel pl-logo img { view-transition-name: vt-logo; } // the picture, not its full-width box
+:root[data-wt='morph']::view-transition-group(*) { animation-duration: .38s; animation-timing-function: cubic-bezier(.3, .7, .2, 1); }
+:root[data-wt='morph']::view-transition-old(*),
+:root[data-wt='morph']::view-transition-new(*) { animation-duration: .38s; }
+:root[data-wt='morph']::view-transition-old(vt-form) { animation-duration: .2s; }
 
 // Forms in centred pop-ups (shared/form-dialog.ts). The page behind stays still while one is open.
 html:has(dialog[open]) { overflow: hidden; }

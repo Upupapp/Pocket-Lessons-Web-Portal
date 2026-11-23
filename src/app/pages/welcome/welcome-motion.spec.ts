@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAGES, SUNBURST_PATH, WORDS, cardAt, colorsAt, dot, mix, rubber, say, settle, windowClip } from './welcome-motion';
+import { PAGES, SUNBURST_PATH, WORDS, cardAt, colorsAt, dot, morphTargets, mix, rubber, say, settle } from './welcome-motion';
 
 // The web welcome pages move like the phone's: colours blend, dots stretch, the card glides across.
 describe('welcome pages', () => {
@@ -61,19 +61,19 @@ describe('welcome pages', () => {
     expect(cardAt(1, w, true)).toMatchObject({ x: 0, opacity: 1 });
   });
 
-  it('cuts the window along the card’s wave: down its left edge on wide screens, across its top on phones', () => {
-    // 1440 × 900, card from x = 827: the wave starts 45 px left of the card and ends at x = 810 at the bottom.
-    expect(windowClip(true, 1440, 900, 827, 0)).toBe(
-      "path('M0,0 L814,0 C782,198 828,378 806,558 C788,702 794,810 810,900 L0,900 Z')",
-    );
-    // A 390 px phone, card from y = 545: the wave runs from 34 px above the card's top to 6 px below it.
-    const narrow = windowClip(false, 390, 844, 0, 545);
-    expect(narrow.startsWith("path('M0,0 L390,0 L390,")).toBe(true);
-    expect(narrow.endsWith(" Z')")).toBe(true);
-    const ys = [...narrow.matchAll(/,(\d+(?:\.\d)?)/g)].map((m) => Number(m[1])).slice(2);
-    for (const y of ys) {
-      expect(y).toBeGreaterThanOrEqual(545 - 34);
-      expect(y).toBeLessThanOrEqual(545 + 6);
-    }
+  it('knows where the sign-in page puts things, so the last page can turn into it', () => {
+    // 1440 × 900: green panel 600 wide; the form card 440 wide, centred in the white part, about 141 px down.
+    const wide = morphTargets(1440, 900, true);
+    expect(wide.panel).toBe(600);
+    expect(wide.card).toEqual({ x: 600, width: 840, top: 0 });
+    expect(wide.form).toMatchObject({ x: 800, w: 440, h: 562 });
+    expect(wide.form.y).toBeCloseTo(141, 0);
+    expect(wide.logo).toEqual({ x: 40, y: 28, height: 60 });
+    // A 390 px phone: a green header on top, the form card 20 px in from the sides under it.
+    const phone = morphTargets(390, 844, false);
+    expect(phone.card.top).toBe(262);
+    expect(phone.form).toMatchObject({ x: 20, w: 350, y: 294 });
+    expect(phone.logo).toEqual({ x: 20, y: 18, height: 60 });
+    expect(morphTargets(320, 640, false).card.top).toBe(300); // the quote takes three lines there
   });
 });

@@ -8,6 +8,7 @@ import { ProcessError, ProcessStep, Processing } from '../../core/processing';
 import { local } from '../../core/storage';
 import { BrandPanel } from '../../shared/brand-panel';
 import { easeInOutCubic } from '../welcome/welcome-motion';
+import { arrival } from '../../core/arrival';
 
 @Component({
   selector: 'pl-sign-in',
@@ -21,7 +22,7 @@ import { easeInOutCubic } from '../welcome/welcome-motion';
       <pl-brand-panel class="side" [quote]="quote()" [sub]="sub()" [front]="mode() === 'join' ? 'teacher' : null" [face]="1 - 2 * j()" />
 
       <section class="panel">
-        <div #card class="card form-card" [style.opacity]="cardOpacity()">
+        <div #card class="card form-card" [class.arrived]="arrived" [style.opacity]="cardOpacity()">
           <div class="tabs" [class.join]="mode() === 'join'" role="tablist">
             <span class="thumb" aria-hidden="true"></span>
             <button type="button" role="tab" [class.on]="mode() === 'signin'" [attr.aria-selected]="mode() === 'signin'" (click)="setMode('signin')">Sign in</button>
@@ -99,6 +100,8 @@ import { easeInOutCubic } from '../welcome/welcome-motion';
       display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; background: #fff;
     }
     .form-card { width: min(440px, 100%); padding: 28px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) backwards; }
+    /* Reached from the welcome pages' "Get started", the card is already in place: no second rise. */
+    .form-card.arrived { animation: none; }
     @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
     .tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--cream-2); border-radius: 999px; padding: 4px; margin-bottom: 24px; }
     /* The white pill slides under the tab that is chosen. */
@@ -155,6 +158,8 @@ export class SignIn implements OnInit {
   readonly switched = signal(false);
   private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private readonly cardEl = viewChild<ElementRef<HTMLElement>>('card');
+  /** Reached from "Get started" on the welcome pages (they turned into this page). */
+  readonly arrived = arrival.fromWelcome;
   private raf = 0;
   readonly busy = signal(false);
   readonly error = signal('');
@@ -165,6 +170,7 @@ export class SignIn implements OnInit {
   code = '';
 
   constructor() {
+    arrival.fromWelcome = false;
     local.set('welcomeSeen', true);
     void this.auth.ensureDemoAccount();
     inject(DestroyRef).onDestroy(() => cancelAnimationFrame(this.raf));

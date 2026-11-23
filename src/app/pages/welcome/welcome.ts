@@ -3,7 +3,8 @@ import { Router } from '@angular/router';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
 import { WelcomeDevices } from './welcome-devices';
-import { Lang, PAGES, WORDS, cardAt, colorsAt, dot, easeInOutCubic, rubber, say, settle, windowClip } from './welcome-motion';
+import { arrival } from '../../core/arrival';
+import { Lang, PAGES, WORDS, cardAt, colorsAt, dot, easeInOutCubic, mix, morphTargets, rubber, say, settle } from './welcome-motion';
 
 const PAGE_MS = 520;
 /** On wide screens the card crosses more than half the screen, so a page turn takes a little longer. */
@@ -51,7 +52,7 @@ const WIDE = '(min-width: 900px)';
         (pointercancel)="up($event)"
       >
         <!-- The laptop and the phone: on the free side of the card, gliding under it to the other side between pages. -->
-        <pl-welcome-devices [pos]="pos()" [wide]="wide()" [sw]="sw()" [sh]="sh()" [card]="card()" [lang]="lang()" [reduced]="reduced" />
+        <pl-welcome-devices [pos]="pos()" [wide]="wide()" [sw]="sw()" [sh]="sh()" [card]="card()" [lang]="lang()" [reduced]="reduced" [exit]="exit()" />
       </section>
 
       <!-- On wide screens the card trades sides each page (right, left, right) and glides across between them. -->
@@ -303,6 +304,9 @@ export class Welcome {
   private readonly mainEl = viewChild<ElementRef<HTMLElement>>('main');
   private readonly cardEl = viewChild<ElementRef<HTMLElement>>('cardEl');
   private readonly appRef = inject(ApplicationRef);
+  /** "Get started": 0 → 1 while the page turns into the sign-in page. */
+  readonly exit = signal(0);
+  private morphing = false;
   private readonly nextBtn = viewChild<ElementRef<HTMLButtonElement>>('nextBtn');
   private tween: { from: number; to: number; start: number; dur: number } | null = null;
   private dragging: { id: number; x0: number; pos0: number; page0: number; lastX: number; lastT: number; v: number; moved: boolean } | null = null;
@@ -468,46 +472,142 @@ export class Welcome {
 
   private finish(): void {
     local.set('welcomeSeen', true);
-    if (this.openWindow()) return;
+    if (this.morphToSignIn()) return;
     this.leaving.set(true);
     setTimeout(() => void this.router.navigateByUrl('/sign-in'), this.reduced ? 0 : 380);
   }
 
   /**
-   * "Get started": the page opens like a window along the wave between its two sides, onto the sign-in page
-   * behind it. The picture side swings away on its outer hinge and the card on the other (on phones: up and
-   * down). A view transition (styles.scss, "window"); browsers without one, and reduced motion, keep the fade.
+   * "Get started" on the last page: everything on the page moves to its place on the sign-in page (0.9 s).
+   * The pill grows into the sign-in card, turning white; the card widens (on phones: rises) as the green side
+   * narrows into the sign-in panel; the logo flies to the panel's corner; the laptop glides onto the panel's ring,
+   * its screen becoming the teacher's dashboard, the phone slipping behind it. Then the real sign-in page takes
+   * over: a short view transition settles the card and the logo exactly and fades in the rest (styles.scss).
+   * Reduced motion keeps the plain fade; without view transitions the page simply changes at the end.
    */
-  private openWindow(): boolean {
-    const doc = document as Document & { startViewTransition?: (update: () => Promise<void>) => { finished: Promise<void> } };
+  private morphToSignIn(): boolean {
     const main = this.mainEl()?.nativeElement;
     const card = this.cardEl()?.nativeElement;
-    if (this.reduced || typeof doc.startViewTransition !== 'function' || !main || !card) return false;
+    const cta = this.nextBtn()?.nativeElement;
+    const logo = main?.querySelector<HTMLElement>('.bar .logo');
+    if (this.reduced || !main || !card || !cta || !logo) return false;
+    if (this.morphing) return true;
+    this.morphing = true;
+    main.style.pointerEvents = 'none';
     const wide = this.wide();
-    const box = main.getBoundingClientRect();
+    const W = innerWidth;
+    const H = innerHeight;
+    const to = morphTargets(W, H, wide);
+    const lerp = (a: number, b: number, f: number) => a + (b - a) * f;
+    const clamp = (x: number) => Math.min(1, Math.max(0, x));
+
+    // The pill: a copy grows from where the button is (it keeps the page's styles); the button itself hides.
+    const b = cta.getBoundingClientRect();
+    const pill = cta.cloneNode(true) as HTMLElement;
+    pill.removeAttribute('aria-label');
+    pill.setAttribute('aria-hidden', 'true');
+    Object.assign(pill.style, { position: 'fixed', zIndex: '8', margin: '0', transition: 'none', left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px`, overflow: 'hidden' });
+    main.appendChild(pill);
+    cta.style.visibility = 'hidden';
+    const label = [...pill.children] as HTMLElement[];
+    const accent = getComputedStyle(cta).backgroundColor;
+    // Inside it, a soft outline of the sign-in form fades in as it grows; the real form sharpens into it.
+    const skeleton = document.createElement('div');
+    const bar = (w: string, h: number, top: number, extra = '') => `<i style="display:block;width:${w};height:${h}px;margin-top:${top}px;border-radius:${h > 20 ? 10 : 6}px;${extra}"></i>`;
+    skeleton.innerHTML = [
+      bar('100%', 46, 0, 'border-radius:999px;background:#F1EFE8'),
+      bar('58%', 30, 24, 'background:#DCE8E3'),
+      bar('86%', 12, 12, 'background:#ECEFEA'),
+      bar('18%', 12, 28, 'background:#E4E9E5'),
+      bar('100%', 44, 8, 'border:1px solid #E3E6E1;box-sizing:border-box'),
+      bar('24%', 12, 16, 'background:#E4E9E5'),
+      bar('100%', 44, 8, 'border:1px solid #E3E6E1;box-sizing:border-box'),
+      bar('100%', 46, 16, `background:${accent};opacity:.9`),
+      bar('100%', 118, 20, 'background:#F6F7F4;border:1px solid #ECEEE9;box-sizing:border-box'),
+    ].join('');
+    Object.assign(skeleton.style, { position: 'absolute', left: '28px', right: '28px', top: '28px', opacity: '0', pointerEvents: 'none' });
+    pill.appendChild(skeleton);
+
+    // The logo: a copy flies from the top corner to the green panel's corner, growing to the panel's size.
+    const l = logo.getBoundingClientRect();
+    const flyer = logo.cloneNode(true) as HTMLElement;
+    flyer.classList.remove('logo');
+    Object.assign(flyer.style, { position: 'fixed', zIndex: '8', left: '0', top: '0', transformOrigin: '0 0', margin: '0' });
+    main.appendChild(flyer);
+    const natural = flyer.getBoundingClientRect().height || l.height;
+    logo.style.visibility = 'hidden';
+    const k0 = l.height / natural;
+    const k1 = to.logo.height / natural;
+
+    // Wide: the card itself widens. Phones: a white sheet rises over the card, its wave flattening.
     const c = card.getBoundingClientRect();
-    const root = document.documentElement;
-    const vx = innerWidth / 2;
-    const vy = innerHeight / 2;
-    root.style.setProperty('--wt-clip', windowClip(wide, box.width, box.height, c.left - box.left, c.top - box.top));
-    // Both shutters turn in the same 3D space, seen from the middle of the screen.
-    root.style.setProperty('--wt-po-a', `${vx - box.left}px ${vy - box.top}px`);
-    root.style.setProperty('--wt-po-b', `${vx - c.left}px ${vy - c.top}px`);
-    root.dataset['wt'] = wide ? 'wide' : 'narrow';
-    if (wide) {
-      // The logo sits on the card's side of the line: it swings away with the card.
-      const logo = main.querySelector<HTMLElement>('.bar .logo');
-      if (logo) {
-        const r = logo.getBoundingClientRect();
-        card.appendChild(logo);
-        Object.assign(logo.style, { position: 'absolute', left: `${r.left - c.left}px`, top: `${r.top - c.top}px`, zIndex: '5' });
-      }
+    const fade = [card.querySelector<HTMLElement>('.card-in'), main.querySelector<HTMLElement>('.bar .lang')].filter((e): e is HTMLElement => !!e);
+    const wave = card.querySelector<HTMLElement>(wide ? '.wave.side.l' : '.wave.top');
+    let sheet: HTMLElement | null = null;
+    if (!wide) {
+      sheet = document.createElement('div');
+      sheet.setAttribute('aria-hidden', 'true');
+      sheet.innerHTML = '<svg viewBox="0 -6 100 46" preserveAspectRatio="none" style="position:absolute;left:0;top:-34px;width:100%;height:40px;fill:#fff;overflow:visible"><path d="M0,26 C22,-6 42,40 62,18 C78,0 90,6 100,22 L100,40 L0,40 Z"/></svg>';
+      Object.assign(sheet.style, { position: 'fixed', zIndex: '7', left: '0', right: '0', top: `${c.top}px`, height: `${H + 60}px`, background: '#fff' });
+      main.appendChild(sheet);
     }
-    main.style.setProperty('view-transition-name', 'wt-a');
-    card.style.setProperty('view-transition-name', 'wt-b');
+    if (wave) wave.style.transformOrigin = wide ? '100% 50%' : '50% 100%';
+
+    const start = performance.now();
+    const DUR = 900;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / DUR);
+      const e = easeInOutCubic(p);
+      const gone = clamp(1 - p * 4); // the words, dots and buttons leave first
+      for (const el of fade) el.style.opacity = String(gone);
+      if (wide) {
+        card.style.transform = `translate3d(${lerp(c.left, to.card.x, e)}px, 0, 0)`;
+        card.style.width = `${lerp(c.width, to.card.width, e)}px`;
+        if (wave) wave.style.transform = `scaleX(${1 - e})`; // the wave straightens into the panel's edge
+      } else if (sheet) {
+        sheet.style.top = `${lerp(c.top, to.card.top, e)}px`;
+        const w = sheet.firstElementChild as SVGElement;
+        w.style.transform = `scaleY(${1 - e})`;
+        w.style.transformOrigin = '50% 100%';
+      }
+      // The pill grows into the card and turns white; its words fade as it grows.
+      pill.style.left = `${lerp(b.left, to.form.x, e)}px`;
+      pill.style.top = `${lerp(b.top, to.form.y, e)}px`;
+      pill.style.width = `${lerp(b.width, to.form.w, e)}px`;
+      pill.style.height = `${lerp(b.height, to.form.h, e)}px`;
+      pill.style.borderRadius = `${lerp(b.height / 2, 18, e)}px`;
+      const white = 1 - Math.pow(1 - clamp((p - 0.06) / 0.34), 3); // quickly to white, so it never sits grey-green
+      pill.style.background = white > 0 ? mixRgb(accent, '#ffffff', white) : '';
+      pill.style.boxShadow = `0 ${lerp(8, 8, e)}px ${lerp(18, 24, e)}px ${lerp(0, -12, e)}px rgba(22, 60, 59, ${lerp(0.3, 0.18, e)}), 0 0 0 ${white}px rgba(232, 225, 209, ${white})`;
+      for (const part of label) part.style.opacity = String(clamp(1 - p * 3.5));
+      skeleton.style.opacity = String(clamp((p - 0.38) / 0.36));
+      // The logo flies to the panel's corner.
+      const k = lerp(k0, k1, e);
+      flyer.style.transform = `translate(${lerp(l.left, to.logo.x, e)}px, ${lerp(l.top, to.logo.y, e)}px) scale(${k})`;
+      // The laptop and phone travel onto the panel (welcome-devices.ts).
+      this.exit.set(p);
+      // Nearly there (97% of the way): the real page takes over and settles the rest.
+      if (p < 0.8) requestAnimationFrame(step);
+      else this.handOver(pill, flyer);
+    };
+    requestAnimationFrame(step);
+    return true;
+  }
+
+  /** The real sign-in page takes over: the card and the logo settle exactly onto it, the rest fades across. */
+  private handOver(pill: HTMLElement, flyer: HTMLElement): void {
+    arrival.fromWelcome = true;
+    const doc = document as Document & { startViewTransition?: (update: () => Promise<void>) => { finished: Promise<void> } };
+    if (typeof doc.startViewTransition !== 'function') {
+      void this.router.navigateByUrl('/sign-in');
+      return;
+    }
+    pill.style.setProperty('view-transition-name', 'vt-form');
+    (flyer.querySelector('img') ?? flyer).style.setProperty('view-transition-name', 'vt-logo');
+    const root = document.documentElement;
+    root.dataset['wt'] = 'morph';
     const done = () => {
       delete root.dataset['wt'];
-      for (const prop of ['--wt-clip', '--wt-po-a', '--wt-po-b']) root.style.removeProperty(prop);
     };
     doc
       .startViewTransition(async () => {
@@ -515,8 +615,16 @@ export class Welcome {
         await this.appRef.whenStable();
       })
       .finished.then(done, done);
-    return true;
   }
+
+}
+
+/** A colour between a computed css rgb()/rgba() colour and a hex colour. */
+function mixRgb(from: string, to: string, t: number): string {
+  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(from);
+  if (!m) return to;
+  const hex = '#' + [m[1], m[2], m[3]].map((v) => Number(v).toString(16).padStart(2, '0')).join('');
+  return mix(hex, to, t);
 }
 
 function indexOf(step: string): number {

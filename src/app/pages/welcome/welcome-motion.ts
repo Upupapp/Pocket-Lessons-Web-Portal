@@ -177,22 +177,44 @@ export const SUNBURST_PATH = (() => {
   return d;
 })();
 
-// ---------- "Get started": the page opens like a window ----------
+// ---------- "Get started": the page turns into the sign-in page ----------
+
+export interface MorphTargets {
+  /** Width of the sign-in page's green panel (all of it on phones, where it is a header). */
+  panel: number;
+  /** Where the white card ends up: its left edge and width (wide), or its top (phones). */
+  card: { x: number; width: number; top: number };
+  /** The sign-in form's card, which the "Get started" pill grows into. */
+  form: { x: number; y: number; w: number; h: number };
+  /** The logo at the top of the green panel. */
+  logo: { x: number; y: number; height: number };
+}
 
 /**
- * The picture side of the page as a clip path, cut exactly along the card's wave, for the window that opens on
- * "Get started" (the card is the other shutter). In px of the page.
- * Wide screens: the wave runs down the card's left edge (46 px wide, starting 45 px left of the card).
- * Phones: it runs across the card's top (40 px tall, starting 34 px above the card).
+ * Where things stand on the sign-in page (sign-in.ts and brand-panel.ts), so the last welcome page can turn into it.
+ * Wide screens: green panel 5/12 on the left (logo at 40, 28, 60 px tall), the form card (440 px, about 562 tall)
+ * centred in the white part with the note under it. Phones: a green header about 262 px tall (300 on the
+ * narrowest, where the quote takes three lines), the form card 20 px in from the sides, 32 px under it.
+ * The handover to the real page settles any small difference.
  */
-export function windowClip(wide: boolean, w: number, h: number, cardLeft: number, cardTop: number): string {
-  const f = (n: number) => Math.round(n * 10) / 10;
+export function morphTargets(w: number, h: number, wide: boolean): MorphTargets {
   if (wide) {
-    const x = (u: number) => f(cardLeft - 45 + u);
-    const y = (v: number) => f((v * h) / 100);
-    return `path('M0,0 L${x(32)},0 C${x(0)},${y(22)} ${x(46)},${y(42)} ${x(24)},${y(62)} C${x(6)},${y(78)} ${x(12)},${y(90)} ${x(28)},${y(100)} L0,${f(h)} Z')`;
+    const panel = (w * 5) / 12;
+    const formW = Math.min(440, w - panel - 40);
+    const formH = 562;
+    return {
+      panel,
+      card: { x: panel, width: w - panel, top: 0 },
+      form: { x: panel + (w - panel - formW) / 2, y: Math.max(32, (h - formH - 56) / 2), w: formW, h: formH },
+      logo: { x: 40, y: 28, height: 60 },
+    };
   }
-  const x = (u: number) => f((u * w) / 100);
-  const y = (v: number) => f(cardTop - 34 + ((v + 6) * 40) / 46);
-  return `path('M0,0 L${f(w)},0 L${x(100)},${y(22)} C${x(90)},${y(6)} ${x(78)},${y(0)} ${x(62)},${y(18)} C${x(42)},${y(40)} ${x(22)},${y(-6)} ${x(0)},${y(26)} Z')`;
+  const head = w < 360 ? 300 : 262;
+  const formW = Math.min(440, w - 40);
+  return {
+    panel: w,
+    card: { x: 0, width: w, top: head },
+    form: { x: (w - formW) / 2, y: head + 32, w: formW, h: 560 },
+    logo: { x: 20, y: 18, height: 60 },
+  };
 }
