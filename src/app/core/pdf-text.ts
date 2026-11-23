@@ -12,6 +12,8 @@ interface Line {
 }
 
 const TERMINAL = /[.!?]["”’)]?$/;
+/** Icons and bullets with no letter in the PDF come out as invisible control characters (U+0000); they are dropped. */
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
 export async function pdfToText(file: Blob): Promise<string> {
   const pdfjs = await import('pdfjs-dist');
@@ -24,10 +26,12 @@ export async function pdfToText(file: Blob): Promise<string> {
     const content = await page.getTextContent();
     const rows: { y: number; height: number; parts: { x: number; end: number; str: string }[] }[] = [];
     for (const item of content.items) {
-      if (!('str' in item) || !item.str.trim()) continue;
+      if (!('str' in item)) continue;
+      const str = item.str.replace(CONTROL_CHARS, '');
+      if (!str.trim()) continue;
       const [, , , , x, y] = item.transform as number[];
       const row = rows.find((r) => Math.abs(r.y - y) < 2.5);
-      const part = { x, end: x + item.width, str: item.str };
+      const part = { x, end: x + item.width, str };
       if (row) {
         row.parts.push(part);
         row.height = Math.max(row.height, item.height);

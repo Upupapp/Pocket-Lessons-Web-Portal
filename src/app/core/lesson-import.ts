@@ -61,9 +61,16 @@ const COMMON = new Set(
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
 export const countWords = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
+/**
+ * Invisible control characters (all but tab and line breaks). A PDF's icons and bullets that have no letter
+ * come out as U+0000, which the server's database cannot store, so they are dropped from imported text.
+ */
+export const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+
 /** Splits text into blocks separated by blank lines; each block keeps its lines. */
 function blocks(text: string): string[][] {
   return text
+    .replace(CONTROL_CHARS, '')
     .replace(/\r\n?/g, '\n')
     .split(/\n\s*\n/)
     .map((b) => b.split('\n').map(clean).filter(Boolean))
