@@ -1,7 +1,9 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { ImportDraft, ImportDraftData } from '../../core/import-draft';
+import { ImportDialog } from '../../shared/import-dialog';
 import { DataService } from '../../core/data.service';
 import { LEVELS, Lesson, Level, PACK_LIMIT_BYTES, Unit, formatBytes } from '../../core/models';
 import { SUBJECTS, subjectIcon, subjectOf } from '../../core/subjects';
@@ -11,7 +13,7 @@ type Filter = 'all' | 'draft' | 'published';
 /** Lesson library (WEB-05). */
 @Component({
   selector: 'pl-lessons',
-  imports: [RouterLink, FormsModule, DatePipe],
+  imports: [RouterLink, FormsModule, DatePipe, ImportDialog],
   template: `
     <div class="page-head">
       <div>
@@ -20,12 +22,16 @@ type Filter = 'all' | 'draft' | 'published';
       </div>
       <div class="head-actions">
         <a class="btn btn-ghost" routerLink="/app/lessons/new">+ New lesson</a>
-        <a class="btn btn-primary" routerLink="/app/lessons/import">
+        <button type="button" class="btn btn-primary" (click)="importing.set(true)">
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           Import a lesson file
-        </a>
+        </button>
       </div>
     </div>
+
+    @if (importing()) {
+      <pl-import-dialog (closed)="importing.set(false)" (done)="review($event)" />
+    }
 
     @if (justCreated(); as u) {
       <div class="toast" role="status">
@@ -210,6 +216,10 @@ export class Lessons {
   readonly filter = signal<Filter>('all');
   readonly level = signal<Level | ''>('');
   readonly subject = signal('');
+  /** The import pop-ups (subject first, then the file). */
+  readonly importing = signal(false);
+  private readonly router = inject(Router);
+  private readonly drafts = inject(ImportDraft);
   readonly subjects = SUBJECTS;
   readonly world = subjectOf;
   readonly icon = subjectIcon;
@@ -250,6 +260,13 @@ export class Lessons {
 
   count(f: Filter): number {
     return this.data.lessons().filter((l) => !this.inUnit(l) && (f === 'all' || l.status === f)).length;
+  }
+
+  /** The file was read: review it on the import page. */
+  review(d: ImportDraftData): void {
+    this.drafts.draft.set(d);
+    this.importing.set(false);
+    void this.router.navigateByUrl('/app/lessons/import');
   }
 
   private matchesSubject(key: string | undefined): boolean {

@@ -1,17 +1,17 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { ImportDraft, ImportDraftData } from '../../core/import-draft';
+import { ImportDialog } from '../../shared/import-dialog';
 import { DataService } from '../../core/data.service';
 import {
   ParsedLesson,
   WORDS_PER_LESSON,
   countWords,
-  parseLessonText,
   planUnit,
   suggestedLessonCount,
 } from '../../core/lesson-import';
 import { LANGUAGES, LEVELS, LEVEL_HINT, Level, PASS_MARK } from '../../core/models';
-import { pdfToText } from '../../core/pdf-text';
 import { Coach } from '../../shared/coach';
 import { SubjectPicker } from '../../shared/subject-picker';
 import { SubjectKey, detectLanguage, subjectOf, suggestSubject } from '../../core/subjects';
@@ -22,7 +22,7 @@ import { SubjectKey, detectLanguage, subjectOf, suggestSubject } from '../../cor
  */
 @Component({
   selector: 'pl-lesson-import',
-  imports: [FormsModule, RouterLink, Coach, SubjectPicker],
+  imports: [FormsModule, RouterLink, Coach, SubjectPicker, ImportDialog],
   templateUrl: './lesson-import.html',
   styleUrl: './lesson-import.scss',
 })
@@ -37,12 +37,12 @@ export class LessonImport {
   readonly passMark = PASS_MARK;
   readonly letters = 'ABCD';
 
-  readonly mode = signal<'file' | 'paste'>('file');
-  readonly busy = signal(false);
-  readonly error = signal('');
-  readonly dragging = signal(false);
   readonly fileName = signal('');
-  readonly pasted = signal('');
+  /** The subject and file pop-ups: open until a file is read. */
+  readonly dialogOpen = signal(false);
+  readonly dialogSubject = signal<SubjectKey | null>(null);
+  /** Shows the ten worlds again on the review page. */
+  readonly changing = signal(false);
 
   readonly parsed = signal<ParsedLesson | null>(null);
   readonly title = signal('');
@@ -70,79 +70,47 @@ export class LessonImport {
   readonly passNeeded = computed(() => Math.ceil((this.parsed()?.questions.length ?? 0) * PASS_MARK));
   readonly canCreate = computed(() => !!this.parsed()?.paragraphs.length && !!this.title().trim() && !!this.subject());
 
-  async onFile(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (file) await this.read(file);
+  private readonly drafts = inject(ImportDraft);
+
+  constructor() {
+    // The pop-ups on the Lessons page hand over the subject and the file; opened directly, the pop-ups open here.
+    const d = this.drafts.take();
+    if (d) this.use(d);
+    else this.dialogOpen.set(true);
   }
 
-  async onDrop(event: DragEvent): Promise<void> {
-    event.preventDefault();
-    this.dragging.set(false);
-    const file = event.dataTransfer?.files?.[0];
-    if (file) await this.read(file);
-  }
-
-  async read(file: File): Promise<void> {
-    this.error.set('');
-    this.fileName.set(file.name);
-    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
-    const isText = file.type.startsWith('text/') || /\.txt$/i.test(file.name);
-    if (!isPdf && !isText) {
-      this.error.set('Choose a PDF or a .txt file. For a Word file, save it as PDF first, or paste the text.');
-      return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      this.error.set('That file is larger than 15 MB. Lesson files are usually under 1 MB.');
-      return;
-    }
-    this.busy.set(true);
-    try {
-      const text = isPdf ? await pdfToText(file) : await file.text();
-      if (!text.trim()) {
-        this.error.set('No text could be read from this file. It may be a scanned picture of the page. Paste the text instead.');
-        return;
-      }
-      this.useText(text);
-    } catch (err) {
-      console.error(err);
-      this.error.set('This file could not be read. Try saving it again as PDF, or paste the text instead.');
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  readPasted(): void {
-    this.error.set('');
-    this.fileName.set('Pasted text');
-    if (!this.pasted().trim()) {
-      this.error.set('Paste the story and questions first.');
-      return;
-    }
-    this.useText(this.pasted());
-  }
-
-  private useText(text: string): void {
-    const parsed = parseLessonText(text);
-    if (!parsed.paragraphs.length) {
-      this.error.set(parsed.warnings[0] ?? 'No story text was found.');
-      return;
-    }
-    const n = suggestedLessonCount(parsed.paragraphs);
+  /** The file the pop-ups read, with the subject chosen first. */
+  use(d: ImportDraftData): void {
+    const parsed = d.parsed;
+    this.dialogOpen.set(false);
+    this.fileName.set(d.fileName);
     this.parsed.set(parsed);
     this.title.set(parsed.title);
-    this.subject.set(null);
+    this.subject.set(d.subject);
+    this.changing.set(false);
     const lang = detectLanguage(parsed.paragraphs.join(' '));
     if (lang) this.language.set(lang);
+    const n = suggestedLessonCount(parsed.paragraphs);
     this.suggested.set(n);
     this.count.set(n);
   }
 
+  /** The file names a different subject than the one chosen (e.g. it says "Matematika"). */
+  readonly mismatch = computed(() => {
+    const s = this.suggestion();
+    return s && s.reason.startsWith('The file says') && s.key !== this.subject() ? s : null;
+  });
+
+  /** Closing the pop-ups without a file goes back to the lessons. */
+  dialogClosed(): void {
+    this.dialogOpen.set(false);
+    if (!this.parsed()) void this.router.navigateByUrl('/app/lessons');
+  }
+
+  /** "Choose another file": the file pop-up again, keeping the subject. */
   reset(): void {
-    this.parsed.set(null);
-    this.fileName.set('');
-    this.error.set('');
+    this.dialogSubject.set(this.subject());
+    this.dialogOpen.set(true);
   }
 
   create(): void {
