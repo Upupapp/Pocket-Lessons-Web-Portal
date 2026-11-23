@@ -1,4 +1,4 @@
-import { Component, Injector, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, OnInit, computed, inject, input, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { apiMode } from '../../core/api';
@@ -7,22 +7,29 @@ import { DataService } from '../../core/data.service';
 import { ProcessError, ProcessStep, Processing } from '../../core/processing';
 import { local } from '../../core/storage';
 import { BrandPanel } from '../../shared/brand-panel';
+import { easeInOutCubic } from '../welcome/welcome-motion';
 
 @Component({
   selector: 'pl-sign-in',
   imports: [FormsModule, RouterLink, BrandPanel],
   template: `
-    <main class="wrap ws">
-      <pl-brand-panel class="side" quote="“Tuloy ang aral, kahit walang signal.”" sub="Teacher portal for AHA community learning centers" />
+    <!--
+      Wide screens: Sign in has the green panel on the left and the form on the right; Join with invitation trades
+      them, the panel gliding across over the form (the form changes while it is covered). Phones: the form slides.
+    -->
+    <main class="wrap ws" [style.--j]="j()" [style.--glide]="glide()">
+      <pl-brand-panel class="side" [quote]="quote()" [sub]="sub()" [front]="mode() === 'join' ? 'teacher' : null" [face]="1 - 2 * j()" />
 
       <section class="panel">
-        <div class="card form-card">
-          <div class="tabs" role="tablist">
-            <button type="button" role="tab" [class.on]="mode() === 'signin'" [attr.aria-selected]="mode() === 'signin'" (click)="mode.set('signin')">Sign in</button>
-            <button type="button" role="tab" [class.on]="mode() === 'join'" [attr.aria-selected]="mode() === 'join'" (click)="mode.set('join')">Join with invitation</button>
+        <div #card class="card form-card" [style.opacity]="cardOpacity()">
+          <div class="tabs" [class.join]="mode() === 'join'" role="tablist">
+            <span class="thumb" aria-hidden="true"></span>
+            <button type="button" role="tab" [class.on]="mode() === 'signin'" [attr.aria-selected]="mode() === 'signin'" (click)="setMode('signin')">Sign in</button>
+            <button type="button" role="tab" [class.on]="mode() === 'join'" [attr.aria-selected]="mode() === 'join'" (click)="setMode('join')">Join with invitation</button>
           </div>
 
-          @if (mode() === 'signin') {
+          @if (view() === 'signin') {
+          <div class="swap" [class.from-left]="switched()">
             <h1>Welcome back</h1>
             <p class="muted">Sign in to make lessons and check your learners' reading.</p>
             <form (ngSubmit)="signIn($event)" #f="ngForm" novalidate>
@@ -47,7 +54,9 @@ import { BrandPanel } from '../../shared/brand-panel';
                 <button type="button" class="btn btn-ghost btn-sm" (click)="useAdmin($event)">Sample administrator</button>
               </div>
             </div>
+          </div>
           } @else {
+          <div class="swap" [class.from-right]="switched()">
             <h1>Join your center</h1>
             <p class="muted">Staff join only with an invitation code from their center coordinator.</p>
             <form (ngSubmit)="join($event)" novalidate>
@@ -64,6 +73,7 @@ import { BrandPanel } from '../../shared/brand-panel';
               @if (error()) { <p class="error-text" role="alert">{{ error() }}</p> }
               <button class="btn btn-primary full" type="submit" [disabled]="busy()">Create my account</button>
             </form>
+          </div>
           }
         </div>
         <p class="small muted note">
@@ -75,14 +85,31 @@ import { BrandPanel } from '../../shared/brand-panel';
     </main>
   `,
   styles: `
-    .wrap { min-height: 100vh; display: grid; grid-template-columns: 5fr 7fr; }
+    .wrap { position: relative; min-height: 100vh; overflow: hidden; }
     .wrap.ws { background: #fff; }
-    .panel { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; background: #fff; }
-    .form-card { width: min(440px, 100%); padding: 28px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) both; }
+    /* The green panel (5/12 of the width) glides 7/12 across to the other side, over the form, which moves the other way. */
+    .side {
+      position: absolute; z-index: 2; top: 0; bottom: 0; left: 0; width: calc(100% * 5 / 12); will-change: transform;
+      transform: translateX(calc(140% * var(--j, 0)));
+      box-shadow: 0 0 calc(70px * var(--glide, 0)) rgba(12, 36, 35, calc(.22 * var(--glide, 0)));
+    }
+    .panel {
+      position: relative; z-index: 1; min-height: 100vh; margin-left: calc(100% * 5 / 12); width: calc(100% * 7 / 12);
+      transform: translateX(calc(-71.4286% * var(--j, 0)));
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; background: #fff;
+    }
+    .form-card { width: min(440px, 100%); padding: 28px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) backwards; }
     @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-    .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--cream-2); border-radius: 999px; padding: 4px; margin-bottom: 24px; }
-    .tabs button { border: 0; background: transparent; border-radius: 999px; min-height: 38px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
-    .tabs button.on { background: var(--white); color: var(--ink); box-shadow: 0 1px 4px rgba(22, 60, 59, .15); }
+    .tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--cream-2); border-radius: 999px; padding: 4px; margin-bottom: 24px; }
+    /* The white pill slides under the tab that is chosen. */
+    .thumb {
+      position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 999px; background: var(--white);
+      box-shadow: 0 1px 4px rgba(22, 60, 59, .15); transition: transform .35s cubic-bezier(.3, .7, .2, 1);
+    }
+    .tabs.join .thumb { transform: translateX(100%); }
+    .tabs button { position: relative; z-index: 1; border: 0; background: transparent; border-radius: 999px; min-height: 38px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; transition: color .2s; }
+    .tabs button.on { color: var(--ink); }
+    .tabs button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     h1 { font-family: var(--serif); font-size: 30px; }
     form { display: grid; gap: 16px; margin-top: 20px; }
     .pw { position: relative; }
@@ -92,19 +119,43 @@ import { BrandPanel } from '../../shared/brand-panel';
     .demo { margin-top: 20px; padding: 14px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); display: grid; gap: 10px; font-size: 14px; color: var(--ink-2); }
     .demo-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
     .note { text-align: center; max-width: 440px; }
-    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } }
-    @media (prefers-reduced-motion: reduce) { .form-card { animation: none; } }
+    /* Phones: the panel is a short header above the form; the form's content slides in from the tab's side. */
+    @media (max-width: 860px) {
+      .wrap { display: flex; flex-direction: column; }
+      .side { position: relative; width: auto; transform: none; box-shadow: none; }
+      .panel { flex: 1; min-height: 0; margin-left: 0; width: auto; transform: none; }
+      .swap.from-right { animation: from-right .38s cubic-bezier(.2, .8, .2, 1) both; }
+      .swap.from-left { animation: from-left .38s cubic-bezier(.2, .8, .2, 1) both; }
+    }
+    @keyframes from-right { from { opacity: 0; transform: translateX(36px); } }
+    @keyframes from-left { from { opacity: 0; transform: translateX(-36px); } }
+    @media (prefers-reduced-motion: reduce) { .form-card, .swap.from-right, .swap.from-left { animation: none; } .thumb { transition: none; } }
   `,
 })
-export class SignIn {
+export class SignIn implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly processing = inject(Processing);
   private readonly injector = inject(Injector);
   readonly next = input<string>('');
+  /** ?join=1 opens "Join with invitation" (the page keeps it when refreshed). */
+  readonly joinParam = input<string>('', { alias: 'join' });
   readonly apiMode = apiMode;
 
   readonly mode = signal<'signin' | 'join'>('signin');
+  /** Where the two sides stand: 0 = panel left (Sign in), 1 = panel right (Join); in between while they glide. */
+  readonly j = signal(0);
+  /** The form shown: it changes halfway across, while the panel covers it. */
+  readonly view = computed<'signin' | 'join'>(() => (this.j() >= 0.5 ? 'join' : 'signin'));
+  readonly glide = computed(() => Math.sin(Math.PI * this.j()));
+  readonly cardOpacity = computed(() => Math.min(1, Math.abs(this.j() - 0.5) * 5));
+  readonly quote = computed(() => (this.view() === 'join' ? '“Join your center’s team.”' : '“Tuloy ang aral, kahit walang signal.”'));
+  readonly sub = computed(() => (this.view() === 'join' ? 'Use the invitation code from your center coordinator.' : 'Teacher portal for AHA community learning centers'));
+  /** After the first switch, the form's content slides in (phones). */
+  readonly switched = signal(false);
+  private readonly reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private readonly cardEl = viewChild<ElementRef<HTMLElement>>('card');
+  private raf = 0;
   readonly busy = signal(false);
   readonly error = signal('');
   readonly showPw = signal(false);
@@ -116,6 +167,48 @@ export class SignIn {
   constructor() {
     local.set('welcomeSeen', true);
     void this.auth.ensureDemoAccount();
+    inject(DestroyRef).onDestroy(() => cancelAnimationFrame(this.raf));
+  }
+
+  ngOnInit(): void {
+    if (this.joinParam() === '1') {
+      this.mode.set('join');
+      this.j.set(1);
+    }
+  }
+
+  /**
+   * The tabs. On wide screens the panel and the form trade sides in 0.65 s; on phones (and with reduced motion)
+   * the form changes at once, sliding in on phones. Afterwards typing continues in the new form.
+   */
+  setMode(m: 'signin' | 'join'): void {
+    if (m === this.mode()) return;
+    this.mode.set(m);
+    this.error.set('');
+    this.switched.set(true);
+    void this.router.navigate([], { queryParams: { join: m === 'join' ? 1 : null }, queryParamsHandling: 'merge', replaceUrl: true });
+    const to = m === 'join' ? 1 : 0;
+    cancelAnimationFrame(this.raf);
+    if (this.reduced || !matchMedia('(min-width: 861px)').matches) {
+      this.j.set(to);
+      return this.focusForm();
+    }
+    const from = this.j();
+    const dur = 650 * Math.abs(to - from);
+    const start = performance.now();
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / Math.max(1, dur));
+      this.j.set(from + (to - from) * easeInOutCubic(p));
+      if (p < 1) this.raf = requestAnimationFrame(step);
+      else this.focusForm();
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+
+  /** The new form's first field, ready to type in (not on touch screens, where it would pop up the keyboard). */
+  private focusForm(): void {
+    if (!matchMedia('(pointer: fine)').matches) return;
+    setTimeout(() => this.cardEl()?.nativeElement.querySelector<HTMLInputElement>('form input')?.focus({ preventScroll: true }));
   }
 
   useDemo(event: Event): void {
