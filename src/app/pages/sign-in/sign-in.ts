@@ -7,12 +7,13 @@ import { DataService } from '../../core/data.service';
 import { ProcessError, ProcessStep, Processing } from '../../core/processing';
 import { local } from '../../core/storage';
 import { BrandPanel } from '../../shared/brand-panel';
+import { WaveBg } from '../../shared/wave-bg';
 import { easeInOutCubic } from '../welcome/welcome-motion';
 import { arrival } from '../../core/arrival';
 
 @Component({
   selector: 'pl-sign-in',
-  imports: [FormsModule, RouterLink, BrandPanel],
+  imports: [FormsModule, RouterLink, BrandPanel, WaveBg],
   template: `
     <!--
       Wide screens: Sign in has the green panel on the left and the form on the right; Join with invitation trades
@@ -22,6 +23,8 @@ import { arrival } from '../../core/arrival';
       <pl-brand-panel class="side" [quote]="quote()" [sub]="sub()" [front]="mode() === 'join' ? 'teacher' : null" [face]="1 - 2 * j()" />
 
       <section class="panel">
+        <!-- The soft green essence behind the form (the card itself stays white). -->
+        <pl-wave-bg />
         <div #card class="card form-card" [class.arrived]="arrived" [style.opacity]="cardOpacity()">
           <div class="tabs" [class.join]="mode() === 'join'" role="tablist">
             <span class="thumb" aria-hidden="true"></span>
@@ -97,7 +100,7 @@ import { arrival } from '../../core/arrival';
     .panel {
       position: relative; z-index: 1; min-height: 100vh; margin-left: calc(100% * 5 / 12); width: calc(100% * 7 / 12);
       transform: translateX(calc(-71.4286% * var(--j, 0)));
-      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; background: #fff;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 20px; gap: 16px; background: var(--bg-wave-s1);
     }
     .form-card { width: min(440px, 100%); padding: 28px; animation: rise .6s cubic-bezier(.2, .8, .2, 1) backwards; }
     /* Reached from the welcome pages' "Get started", the card is already in place: no second rise. */
@@ -122,6 +125,7 @@ import { arrival } from '../../core/arrival';
     .demo { margin-top: 20px; padding: 14px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line); display: grid; gap: 10px; font-size: 14px; color: var(--ink-2); }
     .demo-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
     .note { text-align: center; max-width: 440px; }
+    .form-card, .note { position: relative; z-index: 1; }
     /* Phones: the panel is a short header above the form; the form's content slides in from the tab's side. */
     @media (max-width: 860px) {
       .wrap { display: flex; flex-direction: column; }

@@ -5,15 +5,18 @@ import { AuthService } from '../../core/auth.service';
 import { DataService } from '../../core/data.service';
 import { ProcessError, Processing } from '../../core/processing';
 import { BrandPanel } from '../../shared/brand-panel';
+import { WaveBg } from '../../shared/wave-bg';
 
 /** W-01 A new teacher opens the administrator's one-time setup link and chooses their own password. */
 @Component({
   selector: 'pl-setup',
-  imports: [FormsModule, RouterLink, BrandPanel],
+  imports: [FormsModule, RouterLink, BrandPanel, WaveBg],
   template: `
     <main class="wrap ws">
       <pl-brand-panel class="side" quote="Welcome to Pocket Lessons." sub="Your administrator set up your teacher account. Choose a password to start." />
       <section class="panel">
+        <!-- The soft green essence behind the form (the card itself stays white). -->
+        <pl-wave-bg />
         <div class="card form-card">
           @if (state() === 'loading') {
             <p class="muted" role="status">Checking your link…</p>
@@ -44,8 +47,8 @@ import { BrandPanel } from '../../shared/brand-panel';
   styles: `
     .wrap { min-height: 100vh; display: grid; grid-template-columns: 5fr 7fr; }
     .wrap.ws { background: #fff; }
-    .panel { display: flex; align-items: center; justify-content: center; padding: 32px 20px; background: #fff; }
-    .form-card { width: min(440px, 100%); padding: 28px; display: grid; gap: 10px; }
+    .panel { position: relative; display: flex; align-items: center; justify-content: center; padding: 32px 20px; background: var(--bg-wave-s1); }
+    .form-card { position: relative; z-index: 1; width: min(440px, 100%); padding: 28px; display: grid; gap: 10px; }
     h1 { font-family: var(--serif); font-size: 30px; }
     form { display: grid; gap: 16px; margin-top: 10px; }
     .full { width: 100%; }

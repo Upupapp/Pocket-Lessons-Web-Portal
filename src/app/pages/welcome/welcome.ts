@@ -2,6 +2,7 @@ import { ApplicationRef, Component, DestroyRef, ElementRef, HostListener, afterN
 import { Router } from '@angular/router';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
+import { WaveBg } from '../../shared/wave-bg';
 import { WelcomeDevices } from './welcome-devices';
 import { arrival } from '../../core/arrival';
 import { Lang, PAGES, WORDS, cardAt, colorsAt, dot, easeInOutCubic, mix, morphTargets, rubber, say, settle } from './welcome-motion';
@@ -21,7 +22,7 @@ const WIDE = '(min-width: 900px)';
  */
 @Component({
   selector: 'pl-welcome',
-  imports: [Logo, WelcomeDevices],
+  imports: [Logo, WelcomeDevices, WaveBg],
   template: `
     <main
       #main
@@ -63,10 +64,20 @@ const WIDE = '(min-width: 900px)';
         [style.transform]="wide() ? 'translate3d(' + card().x + 'px,0,0)' : null"
         [style.opacity]="wide() && card().opacity < 1 ? card().opacity : null"
       >
-        <svg class="wave side l" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true"><path d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" /></svg>
-        <svg class="wave side r" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true"><path d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" /></svg>
+        <!-- The wavy edges carry the card's own mint wash, top to bottom, so there is no seam. -->
+        <svg class="wave side l" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="pl-edge-l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--bg-wave-s1)" /><stop offset=".38" style="stop-color: var(--bg-wave-s2)" /><stop offset=".7" style="stop-color: var(--bg-wave-s3)" /><stop offset="1" style="stop-color: var(--bg-wave-s4)" /></linearGradient></defs>
+          <path fill="url(#pl-edge-l)" d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" />
+        </svg>
+        <!-- (turned upside down by its css, so its wash runs the other way) -->
+        <svg class="wave side r" viewBox="0 0 46 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs><linearGradient id="pl-edge-r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color: var(--bg-wave-s4)" /><stop offset=".3" style="stop-color: var(--bg-wave-s3)" /><stop offset=".62" style="stop-color: var(--bg-wave-s2)" /><stop offset="1" style="stop-color: var(--bg-wave-s1)" /></linearGradient></defs>
+          <path fill="url(#pl-edge-r)" d="M32,0 C0,22 46,42 24,62 C6,78 12,90 28,100 L46,100 L46,0 Z" />
+        </svg>
         <svg class="wave top" viewBox="0 -6 100 46" preserveAspectRatio="none" aria-hidden="true"><path d="M0,26 C22,-6 42,40 62,18 C78,0 90,6 100,22 L100,40 L0,40 Z" /></svg>
 
+        <!-- The soft green essence: waves in the card's corners (the card paints the wash). -->
+        <pl-wave-bg [wash]="false" />
         <div class="card-in">
           <div class="dots-row">
             <div class="dots">
@@ -178,13 +189,14 @@ const WIDE = '(min-width: 900px)';
     /* Not the portal's boxed .card: a full-height sheet with no border, corners or shadow, so the seams stay clean. */
     .card {
       position: absolute; z-index: 3; top: 0; bottom: 0; left: 0; will-change: transform;
-      background: #fff; padding: 0; border: 0; border-radius: 0; box-shadow: none;
+      background: var(--bg-wave-base-v); padding: 0; border: 0; border-radius: 0; box-shadow: none;
     }
     .card-in {
-      height: 100%; overflow-y: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 18px;
+      position: relative; z-index: 1; height: 100%; overflow-y: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 18px;
       padding: 104px clamp(28px, 4vw, 64px) 56px;
     }
-    .wave { position: absolute; fill: #fff; pointer-events: none; overflow: visible; }
+    .wave { position: absolute; pointer-events: none; overflow: visible; }
+    .wave.top path { fill: var(--bg-wave-s1); }
     /* A wave on both edges: the one facing the pictures shows, the other is off screen (both show mid-glide). */
     .wave.side { top: 0; width: 46px; height: 100%; }
     .wave.side.l { left: -45px; }
@@ -547,8 +559,8 @@ export class Welcome {
     if (!wide) {
       sheet = document.createElement('div');
       sheet.setAttribute('aria-hidden', 'true');
-      sheet.innerHTML = '<svg viewBox="0 -6 100 46" preserveAspectRatio="none" style="position:absolute;left:0;top:-34px;width:100%;height:40px;fill:#fff;overflow:visible"><path d="M0,26 C22,-6 42,40 62,18 C78,0 90,6 100,22 L100,40 L0,40 Z"/></svg>';
-      Object.assign(sheet.style, { position: 'fixed', zIndex: '7', left: '0', right: '0', top: `${c.top}px`, height: `${H + 60}px`, background: '#fff' });
+      sheet.innerHTML = '<svg viewBox="0 -6 100 46" preserveAspectRatio="none" style="position:absolute;left:0;top:-34px;width:100%;height:40px;fill:var(--bg-wave-s1);overflow:visible"><path d="M0,26 C22,-6 42,40 62,18 C78,0 90,6 100,22 L100,40 L0,40 Z"/></svg>';
+      Object.assign(sheet.style, { position: 'fixed', zIndex: '7', left: '0', right: '0', top: `${c.top}px`, height: `${H + 60}px`, background: 'var(--bg-wave-base)' });
       main.appendChild(sheet);
     }
     if (wave) wave.style.transformOrigin = wide ? '100% 50%' : '50% 100%';
