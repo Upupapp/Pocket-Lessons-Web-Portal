@@ -2,42 +2,25 @@ import { Component, DestroyRef, ElementRef, HostListener, afterNextRender, compu
 import { Router } from '@angular/router';
 import { local } from '../../core/storage';
 import { Logo } from '../../shared/logo';
-import {
-  ALL_ICONS,
-  DRIFT,
-  Lang,
-  PAGES,
-  SUNBURST_PATH,
-  WORDS,
-  artLeft,
-  cardAt,
-  colorsAt,
-  confetti,
-  dot,
-  easeInOutCubic,
-  rubber,
-  say,
-  scene,
-  sceneClip,
-  settle,
-} from './welcome-motion';
+import { WelcomeDevices } from './welcome-devices';
+import { Lang, PAGES, WORDS, cardAt, colorsAt, dot, easeInOutCubic, rubber, say, settle } from './welcome-motion';
 
-const LOOP_MS = 8000;
 const PAGE_MS = 520;
 /** On wide screens the card crosses more than half the screen, so a page turn takes a little longer. */
 const PAGE_MS_WIDE = 640;
 const WIDE = '(min-width: 900px)';
 
 /**
- * W1–W3 Welcome pages, the same as the mobile app's: soft sun, sky and mint pages with floating 3D
- * pictures, a white card with a wave edge, and the same motion when moving between pages
- * (colours blend, layers slide at different depths, dots stretch, the round button fills, then opens).
- * The web's own twist on wide screens: the card trades sides each page (right, left, right), gliding
- * across while the old pictures slip under it and the new ones appear on the side it uncovers.
+ * W1–W3 Welcome pages, the same as the mobile app's: soft sun, sky and mint pages, a white card with a wave
+ * edge, and the same motion when moving between pages (colours blend, dots stretch, the round button fills,
+ * then opens). The web's own pictures: a laptop with the real teacher and admin portal, and the Android phone
+ * with the child's lessons (welcome-devices.ts). On wide screens the card trades sides each page (right, left,
+ * right) and the devices glide under it to the other side, turning to face the words; on phones they stay above
+ * the words, small.
  */
 @Component({
   selector: 'pl-welcome',
-  imports: [Logo],
+  imports: [Logo, WelcomeDevices],
   template: `
     <main
       class="welcome"
@@ -66,44 +49,8 @@ const WIDE = '(min-width: 900px)';
         (pointerup)="up($event)"
         (pointercancel)="up($event)"
       >
-        <svg class="confetti" [attr.viewBox]="'0 0 ' + sw() + ' ' + sh()" preserveAspectRatio="none">
-          @for (b of bits(); track $index) {
-            @if (b.round) {
-              <circle [attr.cx]="b.x" [attr.cy]="b.y" r="3.5" [attr.fill]="b.color" />
-            } @else {
-              <rect x="-5" y="-2.5" width="10" height="5" rx="2" [attr.fill]="b.color" [attr.transform]="'translate(' + b.x + ' ' + b.y + ') rotate(' + deg(b.rotate) + ')'" />
-            }
-          }
-        </svg>
-
-        @for (s of scenes(); track s.k) {
-          <!-- Each page's pictures show only on their side of the card. -->
-          <div class="clip" [style.clip-path]="s.clip">
-            <div class="scene" [style.transform]="'translate3d(' + (s.left + s.shift) + 'px,0,0)'" [style.opacity]="s.opacity">
-              <div
-                class="glow"
-                [style.left.px]="s.glow.x"
-                [style.top.px]="s.glow.y"
-                [style.width.px]="s.glow.size"
-                [style.height.px]="s.glow.size"
-                [style.background]="'radial-gradient(circle, ' + s.glow.color + ' 0%, ' + s.glow.color + '8c 55%, ' + s.glow.color + '00 100%)'"
-              ></div>
-              <svg class="burst" viewBox="0 0 100 100" [style.left.px]="s.burst.x" [style.top.px]="s.burst.y" [style.width.px]="s.burst.size" [style.height.px]="s.burst.size" [style.transform]="'rotate(' + s.burst.rotate + 'rad)'">
-                <path [attr.d]="sunburst" fill="#fff" />
-              </svg>
-              @if (s.ring; as r) {
-                <svg class="ring" [attr.viewBox]="'0 0 ' + r.w + ' ' + r.h" [style.left.px]="r.x" [style.top.px]="r.y" [style.width.px]="r.w" [style.height.px]="r.h">
-                  <ellipse [attr.cx]="r.w / 2" [attr.cy]="r.h / 2" [attr.rx]="r.w / 2 - 2" [attr.ry]="r.h / 2 - 2" fill="none" [attr.stroke]="r.color" stroke-width="3" stroke-dasharray="9 9" />
-                </svg>
-              }
-              @for (f of s.back; track $index) {
-                <img class="pic" [src]="'icons3d/' + f.icon + '.webp'" alt="" draggable="false" [style.width.px]="f.size" [style.height.px]="f.size" [style.opacity]="f.opacity" [style.transform]="'translate3d(' + f.x + 'px,' + f.y + 'px,0) rotate(' + f.rotate + 'rad)'" />
-              }
-              <div class="shadow" [style.left.px]="s.shadow.x" [style.top.px]="s.shadow.y" [style.width.px]="s.shadow.w" [style.height.px]="s.shadow.h"></div>
-              <img class="pic hero" [src]="'icons3d/' + s.hero.icon + '.webp'" alt="" draggable="false" [style.width.px]="s.hero.size" [style.height.px]="s.hero.size" [style.transform]="'translate3d(' + s.hero.x + 'px,' + s.hero.y + 'px,0) rotate(' + s.hero.rotate + 'rad)'" />
-            </div>
-          </div>
-        }
+        <!-- The laptop and the phone: on the free side of the card, gliding under it to the other side between pages. -->
+        <pl-welcome-devices [pos]="pos()" [wide]="wide()" [sw]="sw()" [sh]="sh()" [card]="card()" [lang]="lang()" [reduced]="reduced" />
       </section>
 
       <!-- On wide screens the card trades sides each page (right, left, right) and glides across between them. -->
@@ -224,15 +171,6 @@ const WIDE = '(min-width: 900px)';
     /* Wide screens: the pictures fill the screen and the white card lies on top, on one side or the other. */
     .stage { position: absolute; inset: 0; z-index: 1; overflow: hidden; touch-action: pan-y; cursor: grab; user-select: none; }
     .stage:active { cursor: grabbing; }
-    .confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .clip { position: absolute; inset: 0; }
-    .scene { position: absolute; inset: 0; will-change: transform; }
-    .glow, .burst, .ring, .shadow { position: absolute; pointer-events: none; }
-    .glow { border-radius: 50%; }
-    .burst { opacity: .35; }
-    .ring { overflow: visible; }
-    .shadow { border-radius: 50%; background: rgba(0, 0, 0, .18); filter: blur(12px); }
-    .pic { position: absolute; left: 0; top: 0; pointer-events: none; -webkit-user-drag: none; }
 
     /* Not the portal's boxed .card: a full-height sheet with no border, corners or shadow, so the seams stay clean. */
     .card {
@@ -305,7 +243,7 @@ const WIDE = '(min-width: 900px)';
     @media (max-width: 899px) {
       .welcome { display: flex; flex-direction: column; }
       .bar { position: relative; padding: 12px 16px 0; }
-      .stage { position: relative; inset: auto; flex: 1 1 auto; min-height: 340px; }
+      .stage { position: relative; inset: auto; flex: 1 1 auto; min-height: 250px; }
       .card { position: relative; top: auto; bottom: auto; }
       .card-in { height: auto; overflow: visible; justify-content: flex-start; gap: 14px; padding: 36px 24px 24px; }
       .wave.side { display: none; }
@@ -328,12 +266,10 @@ export class Welcome {
   readonly step = input<string>('1');
   readonly pages = PAGES;
   readonly words = WORDS;
-  readonly sunburst = SUNBURST_PATH;
   readonly reduced = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   readonly lang = signal<Lang>(startLanguage());
   readonly pos = signal(indexOf(this.step()));
-  readonly loop = signal(0.15);
   // Start from the window size so the card is in place on the first frame (the stage is measured after).
   readonly sw = signal(typeof innerWidth === 'number' ? innerWidth : 800);
   readonly sh = signal(typeof innerHeight === 'number' ? innerHeight : 700);
@@ -345,21 +281,6 @@ export class Welcome {
   readonly last = computed(() => this.page() === PAGES.length - 1);
   readonly colors = computed(() => colorsAt(Math.min(PAGES.length - 1, Math.max(0, this.pos()))));
   readonly card = computed(() => cardAt(this.pos(), this.sw(), this.reduced));
-  readonly scenes = computed(() => {
-    const pos = this.pos();
-    const wide = this.wide();
-    const c = this.card();
-    return PAGES.map((_, k) =>
-      wide
-        ? {
-            ...scene(k, pos, c.travel, this.sh(), this.loop(), this.reduced, { drift: DRIFT, fade: 2 }),
-            left: artLeft(k, c),
-            clip: sceneClip(k, c, this.sw()),
-          }
-        : { ...scene(k, pos, this.sw(), this.sh(), this.loop(), this.reduced), left: 0, clip: 'none' },
-    ).filter((s) => (this.reduced ? s.opacity > 0.01 : Math.abs(s.k - pos) < 1.15));
-  });
-  readonly bits = computed(() => confetti(this.reduced ? 0.3 : this.loop(), this.sw(), this.sh()));
   readonly dots = computed(() => PAGES.map((_, d) => dot(d, this.pos(), this.colors().accent)));
   readonly progress = computed(() => {
     const circ = 2 * Math.PI * 28;
@@ -384,11 +305,6 @@ export class Welcome {
 
   constructor() {
     const destroy = inject(DestroyRef);
-    // The pictures load before the first move, so nothing pops in late.
-    for (const icon of ALL_ICONS) {
-      const img = new Image();
-      img.src = `icons3d/${icon}.webp`;
-    }
     if (typeof matchMedia !== 'undefined') {
       const mq = matchMedia(WIDE);
       const onChange = () => this.wide.set(mq.matches);
@@ -409,9 +325,7 @@ export class Welcome {
           destroy.onDestroy(() => ro.disconnect());
         }
       }
-      const begin = performance.now();
       const tick = (now: number) => {
-        if (!this.reduced) this.loop.set((((now - begin) / LOOP_MS) + 0.15) % 1);
         if (this.tween) {
           const p = Math.min(1, (now - this.tween.start) / this.tween.dur);
           this.pos.set(this.tween.from + (this.tween.to - this.tween.from) * easeInOutCubic(p));
@@ -451,10 +365,6 @@ export class Welcome {
 
   t(p: readonly [string, string]): string {
     return say(p, this.lang());
-  }
-
-  deg(rad: number): number {
-    return (rad * 180) / Math.PI;
   }
 
   /** A title's words, so each can rise into place on its own. */
