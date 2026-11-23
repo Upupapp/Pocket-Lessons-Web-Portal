@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, input } from '@angular/core';
 import { Laptop3d } from './laptop-3d';
-import { laptopAngle, seatAt } from './laptop-orbit';
+import { OrbitClock, seatAt } from './laptop-orbit';
 
 /**
  * The sign-in panel's picture: two laptops on a glowing ring, one with the teacher's dashboard and one with the
@@ -57,6 +57,11 @@ export class BrandLaptops {
     { k: 'admin', src: 'welcome/admin-overview.webp' },
   ];
 
+  /** Bring this one to the front and keep it there (Join with invitation: the teacher's); null = take turns. */
+  readonly front = input<'teacher' | 'admin' | null>(null);
+  /** Which way the pair turns a little, towards the form: 1 = right, -1 = left, 0 = straight on. */
+  readonly face = input(0);
+
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   constructor() {
@@ -68,11 +73,20 @@ export class BrandLaptops {
       const seats = [...root.querySelectorAll<HTMLElement>('.seat')];
       const glares = [...root.querySelectorAll<HTMLElement>('.glare')];
       const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let start = performance.now();
+      const clock = new OrbitClock(reduced);
+      let turn = this.face();
+      let last = performance.now();
       const tick = (now: number) => {
+        const sec = now / 1000;
         // The first dashboard gets its full 3 s once it can be seen: after the intro, and after the welcome
         // pages' window has finished opening onto this page.
-        if (document.documentElement.dataset['wt'] || document.querySelector('pl-splash')) start = now;
+        if (document.documentElement.dataset['wt'] || document.querySelector('pl-splash')) clock.wait(sec);
+        const want = this.front();
+        clock.advance(sec, want ? this.laptops.findIndex((l) => l.k === want) : null);
+        // Turning towards the form follows smoothly when the form changes sides.
+        const dt = Math.min(0.1, (now - last) / 1000);
+        last = now;
+        turn += (this.face() - turn) * (reduced ? 1 : 1 - Math.exp(-dt * 5));
         const w = root.clientWidth;
         const h = root.clientHeight;
         if (w > 0 && h > 0) {
@@ -80,11 +94,10 @@ export class BrandLaptops {
           const s = Math.min(w / 1170, h / 720, 0.62);
           const cx = w / 2;
           const cy = h * 0.6;
-          rig.style.transform = `translate3d(${cx}px, ${cy}px, 0) scale3d(${s}, ${s}, ${s}) rotateX(-16deg)`;
+          rig.style.transform = `translate3d(${cx}px, ${cy}px, 0) scale3d(${s}, ${s}, ${s}) rotateX(-16deg) rotateY(${turn * 7}deg)`;
           cam.style.perspectiveOrigin = `${cx}px ${cy - 300 * s}px`;
-          const t = (now - start) / 1000;
           seats.forEach((seat, i) => {
-            const p = seatAt(laptopAngle(i, t, reduced));
+            const p = seatAt(clock.angle(i, sec));
             seat.style.transform = `translate3d(${p.x}px, ${p.y}px, ${p.z}px) rotateY(${p.yaw}deg) scale3d(${p.scale}, ${p.scale}, ${p.scale})`;
             glares[i].style.backgroundPosition = `${50 + p.yaw * 2.2}% 0`;
           });

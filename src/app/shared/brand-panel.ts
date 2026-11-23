@@ -21,12 +21,15 @@ import { Logo } from './logo';
         <img class="f f2" src="icons3d/star.webp" alt="" />
         <img class="f f3" src="icons3d/sparkles.webp" alt="" />
         <img class="f f4" src="icons3d/pencil.webp" alt="" />
-        <pl-brand-laptops />
+        <pl-brand-laptops [front]="front()" [face]="face()" />
       </div>
-      <div class="words">
-        <p class="big">{{ quote() }}</p>
-        <p class="sub">{{ sub() }}</p>
-      </div>
+      <!-- New words rise in when they change (sign-in and join say different things). -->
+      @for (q of [quote()]; track q) {
+        <div class="words">
+          <p class="big">{{ q }}</p>
+          <p class="sub">{{ sub() }}</p>
+        </div>
+      }
       <p class="credit">AHA Learning Center × UpUp Technologies</p>
     </div>
   `,
@@ -47,6 +50,8 @@ import { Logo } from './logo';
     .big { font-family: var(--serif); font-weight: 700; font-size: clamp(26px, 2.6vw, 36px); line-height: 1.18; color: #163C3B; text-wrap: balance; }
     .sub { margin-top: 10px; color: #2B4A47; }
     .credit { font-size: 13px; color: #3F5E59; }
+    .words { animation: words-in .5s cubic-bezier(.16, 1, .3, 1) both; }
+    @keyframes words-in { from { opacity: 0; transform: translateY(12px); } }
     @keyframes drift { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-12px) rotate(6deg); } }
     @keyframes turn { to { transform: rotate(360deg); } }
     @media (max-width: 860px) {
@@ -54,11 +59,14 @@ import { Logo } from './logo';
       .art { display: none; }
       .big { font-size: 24px; }
     }
-    @media (prefers-reduced-motion: reduce) { .burst, .f { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .burst, .f, .words { animation: none; } }
   `,
 })
 export class BrandPanel {
   readonly quote = input.required<string>();
   readonly sub = input('');
+  /** Passed to the laptops: the one to keep in front, and which way to turn (towards the form). */
+  readonly front = input<'teacher' | 'admin' | null>(null);
+  readonly face = input(0);
   readonly sunburst = SUNBURST_PATH;
 }

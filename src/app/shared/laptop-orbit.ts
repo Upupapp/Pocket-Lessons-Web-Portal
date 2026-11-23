@@ -28,17 +28,54 @@ const FRONT = Math.PI / 2;
 const restAt = (k: number) => FRONT + k * Math.PI - (k % 2 ? ORBIT.aside : 0);
 
 /**
- * Laptop i's place on the ring at t seconds (radians; π/2 = at the front, 3π/2 = behind, 0 and π = passing the
- * left and right sides). Laptop 0 starts at the front and laptop 1 behind; every swap moves both on round the ring,
- * the same way, to the other's place.
+ * The two laptops' clock (times in seconds). The one in front rests for 3 s, then they swap round the ring.
+ * Asked for one laptop (`want`), the clock brings it to the front (one swap if it is behind) and keeps it there
+ * until it is let go; then it rests a full 3 s before taking turns again. Laptop 0 starts in front.
  */
-export function laptopAngle(i: number, t: number, reduced = false): number {
-  if (reduced || t <= 0) return restAt(i);
-  const half = ORBIT.hold + ORBIT.swap;
-  const n = Math.floor(t / half);
-  const f = t - n * half;
-  const e = f < ORBIT.hold ? 0 : easeInOutCubic((f - ORBIT.hold) / ORBIT.swap);
-  return restAt(n + i) + (restAt(n + i + 1) - restAt(n + i)) * e;
+export class OrbitClock {
+  /** Swaps done: even = laptop 0 in front, odd = laptop 1. */
+  step = 0;
+  private swapping = false;
+  private since = 0;
+  private wanted: number | null = null;
+
+  /** `still`: reduced motion, laptop 0 stays in front. */
+  constructor(private readonly still = false) {}
+
+  /** The laptop in front (when resting). */
+  get front(): number {
+    return this.step % 2;
+  }
+
+  /** Keeps the current rest from counting, while the panel cannot be seen yet. */
+  wait(now: number): void {
+    if (!this.swapping) this.since = now;
+  }
+
+  /** Moves the clock on to `now`; `want` is the laptop to bring to the front and keep there, or null to take turns. */
+  advance(now: number, want: number | null = null): void {
+    if (want !== this.wanted) {
+      if (want === null && !this.swapping) this.since = now; // let go: the one in front still gets its full rest
+      this.wanted = want;
+    }
+    if (this.still) return;
+    if (this.swapping && now - this.since >= ORBIT.swap) {
+      this.step++;
+      this.swapping = false;
+      this.since = now;
+    }
+    if (!this.swapping && (want === null ? now - this.since >= ORBIT.hold : this.front !== want)) {
+      this.swapping = true;
+      this.since = now;
+    }
+  }
+
+  /** Laptop i's place on the ring at `now` (radians; π/2 = in front, 3π/2 = behind, 0 and π = the sides). */
+  angle(i: number, now: number): number {
+    const e = this.swapping ? easeInOutCubic(Math.min(1, Math.max(0, (now - this.since) / ORBIT.swap))) : 0;
+    const a = restAt(this.step + i);
+    return a + (restAt(this.step + i + 1) - a) * e;
+  }
 }
 
 export interface Seat {
