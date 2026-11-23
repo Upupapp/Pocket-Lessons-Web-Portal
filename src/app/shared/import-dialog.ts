@@ -1,5 +1,4 @@
 import { Component, ElementRef, afterNextRender, computed, input, output, signal, viewChild } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ImportDraftData } from '../core/import-draft';
 import { parseLessonText } from '../core/lesson-import';
 import { pdfToText } from '../core/pdf-text';
@@ -12,7 +11,7 @@ import { SubjectPicker } from './subject-picker';
  */
 @Component({
   selector: 'pl-import-dialog',
-  imports: [FormsModule, SubjectPicker],
+  imports: [SubjectPicker],
   template: `
     <dialog #dlg class="dlg" [attr.aria-labelledby]="step() === 'subject' ? 'imp-subject-title' : 'imp-file-title'" (cancel)="$event.preventDefault(); close()" (click)="backdrop($event)">
       <div class="panel" [class.wide]="step() === 'subject'">
@@ -40,43 +39,28 @@ import { SubjectPicker } from './subject-picker';
               <button type="button" class="link" (click)="step.set('subject')">Change subject</button>
             </p>
           }
-          <div class="tabs" role="tablist" aria-label="How to add the lesson">
-            <button type="button" role="tab" [attr.aria-selected]="mode() === 'file'" [class.on]="mode() === 'file'" (click)="mode.set('file')">Upload a file</button>
-            <button type="button" role="tab" [attr.aria-selected]="mode() === 'paste'" [class.on]="mode() === 'paste'" (click)="mode.set('paste')">Paste the text</button>
-          </div>
-
-          @if (mode() === 'file') {
-            <label
-              class="drop"
-              [class.over]="dragging()"
-              [class.busy]="busy()"
-              (dragover)="$event.preventDefault(); dragging.set(true)"
-              (dragleave)="dragging.set(false)"
-              (drop)="onDrop($event)"
-            >
-              <input type="file" accept=".pdf,.txt,application/pdf,text/plain" class="sr-only" (change)="onFile($event)" [disabled]="busy()" />
-              @if (theme(); as t) { <img class="hero" [src]="icon(t.hero)" alt="" width="64" height="64" /> }
-              @if (busy()) {
-                <strong>Reading {{ fileName() }}…</strong>
-                <span class="muted small">This takes a few seconds.</span>
-              } @else {
-                <strong>Drop the lesson PDF here, or click to choose it</strong>
-                <span class="muted small">PDF or .txt · read in this browser, nothing is uploaded</span>
-              }
-            </label>
-          } @else {
-            <label class="field">
-              <span>Paste the story, the questions and the answer key</span>
-              <textarea class="textarea paste" [ngModel]="pasted()" (ngModelChange)="pasted.set($event)" rows="9"
-                placeholder="Story&#10;HATING KAPATID&#10;(Author)&#10;&#10;First paragraph…&#10;&#10;Comprehension Questions&#10;1. Question?&#10;A) …&#10;B) …&#10;&#10;Key to Correction&#10;1. B"></textarea>
-              <span class="hint">Leave a blank line between paragraphs.</span>
-            </label>
-          }
+          <label
+            class="drop"
+            [class.over]="dragging()"
+            [class.busy]="busy()"
+            (dragover)="$event.preventDefault(); dragging.set(true)"
+            (dragleave)="dragging.set(false)"
+            (drop)="onDrop($event)"
+          >
+            <input type="file" accept=".pdf,.txt,application/pdf,text/plain" class="sr-only" (change)="onFile($event)" [disabled]="busy()" />
+            @if (theme(); as t) { <img class="hero" [src]="icon(t.hero)" alt="" width="64" height="64" /> }
+            @if (busy()) {
+              <strong>Reading {{ fileName() }}…</strong>
+              <span class="muted small">This takes a few seconds.</span>
+            } @else {
+              <strong>Drop the lesson PDF here, or click to choose it</strong>
+              <span class="muted small">PDF or .txt · read in this browser, nothing is uploaded</span>
+            }
+          </label>
           @if (error()) { <p class="error-text" role="alert">{{ error() }}</p> }
           <p class="small muted finds">The portal looks for the <strong>Story</strong> (title, author, paragraphs), <strong>Comprehension Questions</strong> with A to D choices, and the <strong>Key to Correction</strong>, as in the AHA lesson template.</p>
           <div class="actions">
             <button type="button" class="btn btn-ghost" (click)="step.set('subject')">Back</button>
-            @if (mode() === 'paste') { <button type="button" class="btn btn-primary" (click)="readPasted()">Read the text</button> }
           </div>
         }
       </div>
@@ -107,9 +91,6 @@ import { SubjectPicker } from './subject-picker';
       background: var(--tint); color: var(--deep); border: 1px solid color-mix(in srgb, var(--main) 35%, white);
     }
     .link { background: none; border: 0; padding: 4px; color: var(--accent); font: 700 13.5px var(--font); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-    .tabs { display: inline-flex; justify-self: start; background: var(--cream-2); border-radius: 999px; padding: 4px; }
-    .tabs button { border: 0; background: none; border-radius: 999px; padding: 8px 16px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
-    .tabs button.on { background: #fff; color: var(--title); box-shadow: var(--shadow); }
     .drop {
       display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; padding: 28px 18px;
       border: 2px dashed var(--line-strong); border-radius: 14px; background: var(--surface-2); cursor: pointer; transition: background .15s, border-color .15s;
@@ -119,7 +100,6 @@ import { SubjectPicker } from './subject-picker';
     .drop:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
     .drop strong { font-size: 16px; }
     .hero { width: 64px; height: 64px; object-fit: contain; margin-bottom: 4px; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .14)); }
-    .paste { min-height: 200px; font-size: 14px; }
     .finds { line-height: 1.5; }
     @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
@@ -135,12 +115,10 @@ export class ImportDialog {
   readonly subject = signal<SubjectKey | null>(null);
   readonly theme = computed(() => (this.subject() ? subjectOf(this.subject()) : null));
   readonly icon = subjectIcon;
-  readonly mode = signal<'file' | 'paste'>('file');
   readonly busy = signal(false);
   readonly error = signal('');
   readonly dragging = signal(false);
   readonly fileName = signal('');
-  readonly pasted = signal('');
 
   private readonly dlg = viewChild<ElementRef<HTMLDialogElement>>('dlg');
 
@@ -184,26 +162,19 @@ export class ImportDialog {
     this.fileName.set(file.name);
     const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
     const isText = file.type.startsWith('text/') || /\.txt$/i.test(file.name);
-    if (!isPdf && !isText) return this.error.set('Choose a PDF or a .txt file. For a Word file, save it as PDF first, or paste the text.');
+    if (!isPdf && !isText) return this.error.set('Choose a PDF or a .txt file. For a Word file, save it as PDF first.');
     if (file.size > 15 * 1024 * 1024) return this.error.set('That file is larger than 15 MB. Lesson files are usually under 1 MB.');
     this.busy.set(true);
     try {
       const text = isPdf ? await pdfToText(file) : await file.text();
-      if (!text.trim()) return this.error.set('No text could be read from this file. It may be a scanned picture of the page. Paste the text instead.');
+      if (!text.trim()) return this.error.set('No text could be read from this file. It may be a scanned picture of the page: save the lesson from Word or Google Docs as PDF and upload that.');
       this.useText(text);
     } catch (err) {
       console.error(err);
-      this.error.set('This file could not be read. Try saving it again as PDF, or paste the text instead.');
+      this.error.set('This file could not be read. Try saving it again as PDF.');
     } finally {
       this.busy.set(false);
     }
-  }
-
-  readPasted(): void {
-    this.error.set('');
-    this.fileName.set('Pasted text');
-    if (!this.pasted().trim()) return this.error.set('Paste the story and questions first.');
-    this.useText(this.pasted());
   }
 
   private useText(text: string): void {

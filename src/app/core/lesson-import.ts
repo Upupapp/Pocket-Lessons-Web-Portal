@@ -163,7 +163,7 @@ export function parseLessonText(text: string): ParsedLesson {
     if (a !== undefined && a < q.choices.length) q.answer = a;
   }
 
-  if (!paragraphs.length) warnings.push('No story text was found. Check that the file has a "Story" section, or paste the text instead.');
+  if (!paragraphs.length) warnings.push('No story text was found. Check that the file has a "Story" section.');
   if (!title) warnings.push('No story title was found. Type one in before creating the unit.');
   if (!questions.length) warnings.push('No comprehension questions were found. The checkpoint will need questions added by hand.');
   const noKey = questions.filter((q) => q.answer < 0).map((q) => q.number);
