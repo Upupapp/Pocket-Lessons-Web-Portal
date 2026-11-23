@@ -103,8 +103,8 @@ interface ChildRow {
         <label class="field"><span>Search</span><input class="input" type="search" [ngModel]="q()" (ngModelChange)="q.set($event)" name="q" placeholder="Parent or child" /></label>
       </div>
       @if (rows().length) {
-        <table class="table">
-          <thead><tr><th>Parent</th><th>Children</th><th>Phone</th><th>PIN</th><th>Center</th><th></th></tr></thead>
+        <table class="table stack-xs">
+          <thead><tr><th>Parent</th><th>Children</th><th class="hide-xs">Phone</th><th class="hide-xs hide-md">PIN</th><th class="hide-xs hide-md">Center</th><th></th></tr></thead>
           <tbody>
             @for (f of rows(); track f.id) {
               <tr>
@@ -119,17 +119,17 @@ interface ChildRow {
                     }
                   </div>
                 </td>
-                <td>
+                <td class="hide-xs">
                   @if (f.activated) { <span class="pill pill-teal">Linked {{ fmt(f.activatedAt) }}</span> }
                   @else if (f.codeWaiting) { <span class="pill pill-sun">Code waiting · until {{ fmt(f.codeExpiresAt) }}</span> }
                   @else { <span class="pill pill-grey">No active code</span> }
                 </td>
-                <td>
+                <td class="hide-xs hide-md">
                   @if (f.pinSet) { <span class="pill pill-teal">Set</span> }
                   @else if (f.pinResetAt) { <span class="pill pill-sun">Reset {{ fmt(f.pinResetAt) }}</span><span class="adm-sub">New PIN chosen on the phone</span> }
                   @else { <span class="pill pill-grey">Not set yet</span> }
                 </td>
-                <td class="small">{{ f.center }}</td>
+                <td class="small hide-xs hide-md">{{ f.center }}</td>
                 <td>
                   <div class="adm-actions">
                     <button type="button" class="btn btn-ghost btn-sm" (click)="newCode(f, $event)" [disabled]="busy()">New code</button>

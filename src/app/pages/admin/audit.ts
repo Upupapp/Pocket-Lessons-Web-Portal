@@ -27,16 +27,16 @@ import { AdminService, adminError } from '../../core/admin.service';
         </label>
       </div>
       @if (rows().length) {
-        <table class="table">
-          <thead><tr><th>When</th><th>Who</th><th>What</th><th>Center</th><th>Record</th></tr></thead>
+        <table class="table stack-xs">
+          <thead><tr><th>When</th><th>Who</th><th>What</th><th class="hide-xs">Center</th><th class="hide-xs">Record</th></tr></thead>
           <tbody>
             @for (e of rows(); track e.id) {
               <tr>
                 <td class="small nowrap">{{ when(e.at) }}</td>
                 <td><strong>{{ e.user }}</strong></td>
                 <td>{{ describe(e) }}</td>
-                <td class="small">{{ e.center || '—' }}</td>
-                <td class="adm-mono">{{ e.entity }} · {{ e.entityId }}</td>
+                <td class="small hide-xs">{{ e.center || '—' }}</td>
+                <td class="adm-mono hide-xs">{{ e.entity }} · {{ e.entityId }}</td>
               </tr>
             }
           </tbody>

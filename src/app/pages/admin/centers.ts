@@ -68,7 +68,7 @@ import { CopyButton } from '../../shared/copy-button';
   styles: `
     .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
     .grow { flex: 1 1 280px; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .center h2 { font-family: var(--serif); font-size: 21px; }
     .counts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 16px; font-size: 14px; }
     .counts a { text-decoration: none; color: var(--muted); }

@@ -73,20 +73,20 @@ import { Qr } from '../../shared/qr';
         <label class="field"><span>Search</span><input class="input" type="search" [ngModel]="q()" (ngModelChange)="q.set($event)" name="q" placeholder="Name or email" /></label>
       </div>
       @if (rows().length) {
-        <table class="table">
-          <thead><tr><th>Name</th><th>Center</th><th>Role</th><th>Classes</th><th>Status</th><th></th></tr></thead>
+        <table class="table stack-xs">
+          <thead><tr><th>Name</th><th class="hide-xs">Center</th><th>Role</th><th class="hide-xs">Classes</th><th class="hide-xs">Status</th><th></th></tr></thead>
           <tbody>
             @for (s of rows(); track s.id) {
               <tr [class.dim]="!s.active">
                 <td><strong>{{ s.name }}</strong><span class="adm-sub">{{ s.email }}</span></td>
-                <td class="small">{{ s.center }}</td>
+                <td class="small hide-xs">{{ s.center }}</td>
                 <td>
                   <select class="select sm" [ngModel]="s.roleKey" (ngModelChange)="setRole(s, $event)" [name]="'role-' + s.id" [attr.aria-label]="'Role of ' + s.name" [disabled]="!s.active">
                     @for (r of roles; track r.key) { <option [value]="r.key">{{ r.label }}</option> }
                   </select>
                 </td>
-                <td class="small">{{ s.classes.join(', ') || '—' }}</td>
-                <td>
+                <td class="small hide-xs">{{ s.classes.join(', ') || '—' }}</td>
+                <td class="hide-xs">
                   @if (!s.active) { <span class="pill pill-grey">Turned off</span> }
                   @else if (s.setupPending) { <span class="pill pill-sun">Waiting for setup</span> }
                   @else { <span class="pill pill-teal">Active</span> }

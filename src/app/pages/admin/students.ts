@@ -39,8 +39,8 @@ import { Processing } from '../../core/processing';
       </div>
       <p class="small muted count">{{ rows().length }} {{ rows().length === 1 ? 'child' : 'children' }}</p>
       @if (rows().length) {
-        <table class="table">
-          <thead><tr><th>Child</th><th>Grade</th><th>Level</th><th>Class</th><th>Parent</th><th>Center</th><th></th></tr></thead>
+        <table class="table stack-xs">
+          <thead><tr><th>Child</th><th class="hide-xs">Grade</th><th>Level</th><th>Class</th><th class="hide-xs">Parent</th><th class="hide-xs hide-md">Center</th><th></th></tr></thead>
           <tbody>
             @for (s of rows(); track s.id) {
               <tr [class.dim]="s.left">
@@ -50,7 +50,7 @@ import { Processing } from '../../core/processing';
                   @if (s.addedBy === 'parent') { <span class="pill pill-grey by">Added by parent</span> }
                   @if (s.left) { <span class="pill pill-grey by">Left</span> }
                 </td>
-                <td>{{ s.grade }}</td>
+                <td class="hide-xs">{{ s.grade }}</td>
                 <td><span class="lvl" [attr.data-level]="s.level">{{ s.level }}</span></td>
                 <td>
                   <select class="select sm" [ngModel]="s.classId" (ngModelChange)="move(s, $event)" [name]="'cls-' + s.id" [attr.aria-label]="'Class of ' + s.name" [disabled]="s.left || busy()">
@@ -58,8 +58,8 @@ import { Processing } from '../../core/processing';
                     @for (c of classesFor(s.centerId); track c.id) { <option [ngValue]="c.id">{{ c.name }}</option> }
                   </select>
                 </td>
-                <td class="small">{{ s.parentName || '—' }}</td>
-                <td class="small">{{ s.center }}</td>
+                <td class="small hide-xs">{{ s.parentName || '—' }}</td>
+                <td class="small hide-xs hide-md">{{ s.center }}</td>
                 <td>
                   <div class="adm-actions">
                     @if (s.left) {

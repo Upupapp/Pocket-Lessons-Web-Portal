@@ -59,17 +59,17 @@ import { Processing } from '../../core/processing';
         </label>
       </div>
       @if (rows().length) {
-        <table class="table">
-          <thead><tr><th>Class</th><th>Level</th><th>Schedule</th><th>Teacher</th><th>Children</th><th>Center</th><th></th></tr></thead>
+        <table class="table stack-xs">
+          <thead><tr><th>Class</th><th>Level</th><th class="hide-xs">Schedule</th><th class="hide-xs">Teacher</th><th>Children</th><th class="hide-xs">Center</th><th></th></tr></thead>
           <tbody>
             @for (c of rows(); track c.id) {
               <tr>
                 <td><strong>{{ c.name }}</strong><span class="adm-sub">{{ c.program }}</span></td>
                 <td><span class="lvl" [attr.data-level]="c.level">{{ c.level }}</span></td>
-                <td class="small">{{ c.schedule || '—' }}</td>
-                <td class="small">{{ c.teacher || 'No teacher yet' }}</td>
-                <td><a [routerLink]="['/admin/students']" [queryParams]="{ center: c.centerId, class: c.id }">{{ c.children }}</a></td>
-                <td class="small">{{ c.center }}</td>
+                <td class="small hide-xs">{{ c.schedule || '—' }}</td>
+                <td class="small hide-xs">{{ c.teacher || 'No teacher yet' }}</td>
+                <td data-label="Children"><a [routerLink]="['/admin/students']" [queryParams]="{ center: c.centerId, class: c.id }">{{ c.children }}</a></td>
+                <td class="small hide-xs">{{ c.center }}</td>
                 <td>
                   <div class="adm-actions">
                     <button type="button" class="btn btn-ghost btn-sm" (click)="edit(c)">Change</button>

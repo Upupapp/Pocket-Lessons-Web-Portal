@@ -64,7 +64,7 @@ import { Processing } from '../../core/processing';
     .tabs { display: inline-flex; background: var(--cream-2); border-radius: 999px; padding: 4px; margin-bottom: 16px; }
     .tabs button { border: 0; background: transparent; border-radius: 999px; min-height: 36px; padding: 0 16px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
     .tabs button.on { background: var(--white); color: var(--ink); box-shadow: 0 1px 4px rgba(22, 60, 59, .15); }
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
     .kid { display: grid; gap: 12px; }
     .kid.seen { opacity: .75; }
     .who { display: flex; gap: 12px; align-items: center; }
