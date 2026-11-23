@@ -75,8 +75,8 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
         <h2>Checks</h2>
         @if (history().length) {
           <div class="table-scroll">
-          <table class="table">
-            <thead><tr><th>Date</th><th>Check</th><th>Level</th><th>Result</th><th>Note</th></tr></thead>
+          <table class="table stack-xs">
+            <thead><tr><th>Date</th><th>Check</th><th>Level</th><th>Result</th><th class="hide-xs">Note</th></tr></thead>
             <tbody>
               @for (a of history(); track a.id) {
                 <tr>
@@ -89,7 +89,7 @@ import { LineChart, LinePoint } from '../../shared/charts/line-chart';
                   <td class="small">
                     @if (a.type === 'fluency') { {{ a.wcpm }} wcpm · {{ a.accuracy }}% } @else { — }
                   </td>
-                  <td class="small muted">{{ a.note || '—' }}</td>
+                  <td class="small muted hide-xs">{{ a.note || '—' }}</td>
                 </tr>
               }
             </tbody>

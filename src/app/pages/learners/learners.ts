@@ -58,12 +58,12 @@ import { Processing } from '../../core/processing';
       </div>
       @if (rows().length) {
         <table class="table">
-          <thead><tr><th>Learner</th><th>Grade</th><th>Reading level</th><th>Last check</th><th class="hide-sm">Caregiver</th><th></th></tr></thead>
+          <thead><tr><th>Learner</th><th class="hide-xs">Grade</th><th>Reading level</th><th>Last check</th><th class="hide-sm">Caregiver</th><th class="hide-xs"></th></tr></thead>
           <tbody>
             @for (r of rows(); track r.l.id) {
               <tr>
                 <td><a class="name" [routerLink]="['/app/learners', r.l.id]">{{ r.l.name }}</a></td>
-                <td>{{ r.l.grade }}</td>
+                <td class="hide-xs">{{ r.l.grade }}</td>
                 <td><span class="lvl" [attr.data-level]="r.l.level">{{ r.l.level }}</span></td>
                 <td>
                   @if (r.days === null) { <span class="pill pill-red">Never checked</span> }
@@ -71,7 +71,7 @@ import { Processing } from '../../core/processing';
                   @else { <span class="small">{{ r.days === 0 ? 'Today' : r.days + ' days ago' }}</span> }
                 </td>
                 <td class="hide-sm small muted">{{ r.l.caregiver || '—' }}</td>
-                <td class="end"><a class="btn btn-ghost btn-sm" routerLink="/app/assess" [queryParams]="{ learner: r.l.id }">Check reading</a></td>
+                <td class="end hide-xs"><a class="btn btn-ghost btn-sm" routerLink="/app/assess" [queryParams]="{ learner: r.l.id }">Check reading</a></td>
               </tr>
             }
           </tbody>

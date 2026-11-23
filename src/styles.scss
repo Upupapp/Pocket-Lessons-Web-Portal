@@ -127,6 +127,33 @@ p { margin: 0; }
 .table td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .table tr:last-child td { border-bottom: 0; }
 
+// Tablets: columns marked .hide-md step aside (usually the center, already chosen in the filter above).
+@media (max-width: 900px) {
+  .hide-md { display: none; }
+}
+// Phones: tighter cells, and secondary columns (marked .hide-xs) step aside so the rest fits without sideways scrolling.
+// Tables marked .stack-xs turn each row into a small stacked block: the first cell (the name) on its own line,
+// then the rest wrapped beneath, with the actions to the right. A cell's data-label names what a bare value means.
+@media (max-width: 560px) {
+  .table th { padding: 8px 8px; }
+  .table td { padding: 10px 8px; }
+  .hide-xs { display: none; }
+  .page-head h1 { font-size: 26px; }
+  .table.stack-xs thead { display: none; }
+  .table.stack-xs tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 6px; border-bottom: 1px solid var(--line); }
+  .table.stack-xs tbody tr:last-child { border-bottom: 0; }
+  .table.stack-xs tbody td { display: block; padding: 0; border: 0; }
+  .table.stack-xs tbody td.hide-xs { display: none; }
+  .table.stack-xs tbody td:first-child { flex: 1 0 100%; }
+  .table.stack-xs tbody td:last-child:not(:first-child) { margin-left: auto; }
+  .table.stack-xs td[data-label]::before { content: attr(data-label); margin-right: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+}
+// Very small phones (320 px): a little smaller still.
+@media (max-width: 360px) {
+  .table th, .table td { font-size: 13px; }
+  .table td { padding: 8px 6px; }
+}
+
 .page-head {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
   flex-wrap: wrap; margin-bottom: 24px;

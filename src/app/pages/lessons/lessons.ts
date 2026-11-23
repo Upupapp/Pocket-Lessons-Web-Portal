@@ -175,6 +175,15 @@ type Filter = 'all' | 'draft' | 'published';
     .state { font-size: 12px; color: var(--muted); }
     .meter.wide { height: 8px; }
     @media (max-width: 700px) { .unit-head { flex-direction: column; } }
+    /* Phones: the path wraps into an even grid of smaller circles instead of running off the card. */
+    @media (max-width: 560px) {
+      .trail { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 14px 6px; padding: 12px 0 4px; overflow: visible; }
+      .trail li { transform: none; }
+      .trail li::after { display: none; }
+      .disc { width: 46px; height: 46px; font-size: 17px; }
+      .cap { font-size: 13px; }
+      .state { font-size: 11.5px; }
+    }
     .bar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
     .seg { display: inline-flex; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
     .seg button { border: 0; background: none; border-radius: 999px; padding: 8px 14px; font: 700 14px var(--font); color: var(--muted); cursor: pointer; }
@@ -189,7 +198,7 @@ type Filter = 'all' | 'draft' | 'published';
     .subj img { width: 18px; height: 18px; object-fit: contain; }
     .subj.need { padding: 2px 9px; background: var(--warn-bg); color: var(--warn); border-color: #efd99a; }
     .unit-head .subj { margin: 2px 0 6px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 16px; }
     .lesson { text-decoration: none; color: inherit; display: flex; flex-direction: column; gap: 10px; transition: border-color .15s, box-shadow .15s; }
     .lesson:hover { border-color: var(--accent-tint-2); box-shadow: var(--shadow-raise); }
     .top { display: flex; justify-content: space-between; align-items: center; }
@@ -200,7 +209,12 @@ type Filter = 'all' | 'draft' | 'published';
     .meter { height: 6px; border-radius: 999px; background: var(--cream-2); overflow: hidden; }
     .meter span { display: block; height: 100%; background: var(--teal); border-radius: inherit; }
     .meter span.over { background: var(--red); }
-    @media (max-width: 700px) { .right { width: 100%; } .right .input, .right .select { flex: 1; width: auto; } }
+    /* Narrow screens: the two filters side by side, the search on its own full-width line. */
+    @media (max-width: 700px) {
+      .right { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+      .right .input, .right .select { width: 100%; min-width: 0; }
+      .right .input { grid-column: 1 / -1; }
+    }
   `,
 })
 export class Lessons {
