@@ -27,6 +27,8 @@ const NAV: NavItem[] = [
   template: `
     <div class="layout ws" [class.open]="menuOpen()">
       <aside class="side">
+        <!-- A touch of the green essence in the sidebar's top-left corner, behind the logo. -->
+        <pl-wave-bg class="side-wave" corners="tl" [wash]="false" />
         <a routerLink="/app" class="brand" (click)="menuOpen.set(false)"><pl-logo /></a>
         <nav aria-label="Main">
           @for (item of nav; track item.link) {
@@ -127,6 +129,8 @@ const NAV: NavItem[] = [
     .out:hover { border-color: var(--accent); color: var(--accent); }
     .main { min-width: 0; display: flex; flex-direction: column; background: var(--ground); }
     /* The waves fill the content area beside the sidebar and under the header; the page sits above them. */
+    /* Behind the sidebar's logo and menu (the sticky sidebar is its own layer), small, in its top-left corner. */
+    .side-wave { z-index: -1; --wave-tl-w: 180px; }
     .waves { --wave-left: 252px; --wave-top: 60px; }
     .content, .foot, .sync { position: relative; z-index: 1; }
     .top {
