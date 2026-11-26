@@ -1,5 +1,7 @@
-<div class="backdrop" (click)="closed.emit()"></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Child view preview">
+<!-- A native modal dialog sits in the browser's top layer: above the portal's header, footer and sidebar,
+     whatever stacking the page uses (the wave background gives the content area its own layer). -->
+<dialog #dlg class="pv" aria-label="Child view preview" (cancel)="$event.preventDefault(); closed.emit()" (click)="outside($event)">
+<div class="dialog">
   <header class="bar">
     <div>
       <strong>{{ lesson().title || 'Untitled lesson' }}</strong>
@@ -225,7 +227,7 @@
 
       @if (screen() === 'step') {
         <div class="jump">
-          <span class="small muted">Screen {{ index() + 1 }} of {{ steps().length }}</span>
+          <span class="small muted">{{ counter() }}</span>
           <div>
             <button type="button" class="btn btn-ghost btn-sm" (click)="back()">‹ Back</button>
             <button type="button" class="btn btn-ghost btn-sm" (click)="next()">Skip ›</button>
@@ -236,3 +238,4 @@
     </aside>
   </div>
 </div>
+</dialog>

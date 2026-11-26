@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Activity, Lesson, LessonPage, PASS_MARK } from '../../core/models';
 import { media } from '../../core/storage';
 import { Coach, CoachMood } from '../../shared/coach';
@@ -24,7 +24,6 @@ interface Result {
   imports: [MediaImage, Coach],
   templateUrl: './lesson-preview.html',
   styleUrl: './lesson-preview.scss',
-  host: { '(document:keydown.escape)': 'closed.emit()' },
 })
 export class LessonPreview {
   readonly lesson = input.required<Lesson>();
@@ -53,6 +52,13 @@ export class LessonPreview {
     ...this.lesson().activities.map((activity, n) => ({ kind: 'activity' as const, activity, n })),
   ]);
   readonly step = computed(() => this.steps()[this.index()]);
+  /** Beside the phone: "Page 2 of 7" or "Question 1 of 2", in the same words as the steps above it. */
+  readonly counter = computed(() => {
+    const s = this.step();
+    if (!s) return '';
+    const l = this.lesson();
+    return s.kind === 'page' ? `Page ${s.n + 1} of ${l.pages.length}` : `Question ${s.n + 1} of ${l.activities.length}`;
+  });
   readonly onPage = computed(() => {
     const s = this.step();
     return s?.kind === 'page' ? s.page : null;
@@ -155,10 +161,18 @@ export class LessonPreview {
   private audio?: HTMLAudioElement;
   private url = '';
 
+  private readonly dlg = viewChild.required<ElementRef<HTMLDialogElement>>('dlg');
+
   constructor() {
+    afterNextRender(() => this.dlg().nativeElement.showModal());
     inject(DestroyRef).onDestroy(() => this.stopAudio());
     // The world's title font loads only when a lesson in that world is previewed.
     effect(() => ensureSubjectFont(this.theme()));
+  }
+
+  /** A click on the dimmed area around the panel closes the preview (Esc does too). */
+  outside(e: MouseEvent): void {
+    if (e.target === this.dlg().nativeElement) this.closed.emit();
   }
 
   begin(): void {

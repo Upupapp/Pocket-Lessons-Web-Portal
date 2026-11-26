@@ -1,6 +1,10 @@
 // Child-view preview: a phone running the lesson, with teacher notes beside it.
-:host { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 12px; }
-.backdrop { position: absolute; inset: 0; background: rgba(6, 35, 31, .62); backdrop-filter: blur(2px); }
+.pv {
+  position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0;
+  border: 0; padding: 12px; background: transparent; overflow: auto;
+  &[open] { display: grid; place-items: center; }
+}
+.pv::backdrop { background: rgba(6, 35, 31, .62); backdrop-filter: blur(2px); }
 .dialog {
   position: relative; background: var(--cream); border-radius: 28px; padding: 16px 22px 22px;
   width: min(820px, 100%); max-height: calc(100vh - 24px); overflow: auto; box-shadow: 0 30px 80px rgba(0, 0, 0, .35);
