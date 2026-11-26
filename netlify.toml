@@ -1,6 +1,7 @@
 # Netlify settings for the Pocket Lessons teacher web portal.
 [build]
-  command = "npm run build"
+  # One file for both sites: the private staging site sets POCKET_API_URL (see scripts/netlify-build.mjs).
+  command = "node scripts/netlify-build.mjs"
   publish = "dist/pocket-lessons-portal/browser"
 
 [build.environment]

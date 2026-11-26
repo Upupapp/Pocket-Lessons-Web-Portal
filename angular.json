@@ -25,7 +25,7 @@
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "assets": [
-              { "glob": "**/*", "input": "public" },
+              { "glob": "**/*", "input": "public", "ignore": ["downloads/**"] },
               { "glob": "pdf.worker.min.mjs", "input": "node_modules/pdfjs-dist/build", "output": "/" }
             ],
             "styles": ["src/styles.scss"]
@@ -42,14 +42,27 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
+              "assets": [
+                { "glob": "**/*", "input": "public" },
+                { "glob": "pdf.worker.min.mjs", "input": "node_modules/pdfjs-dist/build", "output": "/" }
+              ],
               "fileReplacements": [
-                { "replace": "src/environments/environment.ts", "with": "src/environments/environment.development.ts" }
+                { "replace": "src/environments/environment.ts", "with": "src/environments/environment.development.ts" },
+                { "replace": "src/app/local-only.routes.ts", "with": "src/app/local-only.routes.development.ts" }
               ]
             },
             "demo": {
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "staging": {
+              "budgets": [
+                { "type": "initial", "maximumWarning": "700kB", "maximumError": "1.5MB" },
+                { "type": "anyComponentStyle", "maximumWarning": "16kB", "maximumError": "24kB" }
+              ],
+              "outputHashing": "all",
+              "fileReplacements": [{ "replace": "src/environments/environment.ts", "with": "src/environments/environment.staging.ts" }]
             }
           },
           "defaultConfiguration": "production"

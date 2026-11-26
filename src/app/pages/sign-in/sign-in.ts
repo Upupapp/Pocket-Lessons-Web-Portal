@@ -10,15 +10,17 @@ import { BrandPanel } from '../../shared/brand-panel';
 import { WaveBg } from '../../shared/wave-bg';
 import { easeInOutCubic } from '../welcome/welcome-motion';
 import { arrival } from '../../core/arrival';
+import { AppPromo } from '../../shared/app-promo';
 
 @Component({
   selector: 'pl-sign-in',
-  imports: [FormsModule, RouterLink, BrandPanel, WaveBg],
+  imports: [FormsModule, RouterLink, BrandPanel, WaveBg, AppPromo],
   template: `
     <!--
       Wide screens: Sign in has the green panel on the left and the form on the right; Join with invitation trades
       them, the panel gliding across over the form (the form changes while it is covered). Phones: the form slides.
     -->
+    <pl-app-promo />
     <main class="wrap ws" [style.--j]="j()" [style.--glide]="glide()">
       <pl-brand-panel class="side" [quote]="quote()" [sub]="sub()" [front]="mode() === 'join' ? 'teacher' : null" [face]="1 - 2 * j()" />
 
@@ -51,13 +53,16 @@ import { arrival } from '../../core/arrival';
               @if (error()) { <p class="error-text" role="alert">{{ error() }}</p> }
               <button class="btn btn-primary full" type="submit" [disabled]="busy()">{{ busy() ? 'Signing in…' : 'Sign in' }}</button>
             </form>
-            <div class="demo">
-              <p><strong>Pilot preview.</strong> Use a sample account. All names and figures are sample data.</p>
-              <div class="demo-buttons">
-                <button type="button" class="btn btn-ghost btn-sm" (click)="useDemo($event)">Sample teacher</button>
-                <button type="button" class="btn btn-ghost btn-sm" (click)="useAdmin($event)">Sample administrator</button>
+            <!-- Sample accounts exist only in the browser-only pilot preview, never on the real server. -->
+            @if (!apiMode) {
+              <div class="demo">
+                <p><strong>Pilot preview.</strong> Use a sample account. All names and figures are sample data.</p>
+                <div class="demo-buttons">
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="useDemo($event)">Sample teacher</button>
+                  <button type="button" class="btn btn-ghost btn-sm" (click)="useAdmin($event)">Sample administrator</button>
+                </div>
               </div>
-            </div>
+            }
           </div>
           } @else {
           <div class="swap" [class.from-right]="switched()">
@@ -65,8 +70,12 @@ import { arrival } from '../../core/arrival';
             <p class="muted">Staff join only with an invitation code from their center coordinator.</p>
             <form (ngSubmit)="join($event)" novalidate>
               <label class="field"><span>Invitation code</span>
-                <input class="input" name="code" required [(ngModel)]="code" placeholder="e.g. TONDO-2027" autocapitalize="characters" />
-                <span class="hint">Pilot preview codes: TONDO-2027, SUNRISE-2027, SMOKEY-2027, TRIAS-2027. New teachers can also use a setup link from the administrator.</span>
+                <input class="input" name="code" required [(ngModel)]="code" [placeholder]="apiMode ? 'e.g. TONDO-7KQ3' : 'e.g. TONDO-2027'" autocapitalize="characters" />
+                @if (apiMode) {
+                  <span class="hint">Your center coordinator gives you this code. New teachers can also use a setup link from the administrator.</span>
+                } @else {
+                  <span class="hint">Pilot preview codes: TONDO-2027, SUNRISE-2027, SMOKEY-2027, TRIAS-2027. New teachers can also use a setup link from the administrator.</span>
+                }
               </label>
               <label class="field"><span>Full name</span><input class="input" name="name" required autocomplete="name" [(ngModel)]="name" /></label>
               <label class="field"><span>Email</span><input class="input" type="email" name="jemail" required autocomplete="email" [(ngModel)]="email" /></label>

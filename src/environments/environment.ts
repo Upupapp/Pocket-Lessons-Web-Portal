@@ -4,4 +4,6 @@
  */
 export const environment = {
   apiUrl: '',
+  /** "staging" shows a ribbon: test accounts only. Empty everywhere else. */
+  stage: '',
 };
