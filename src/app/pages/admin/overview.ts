@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AdminCenter, AdminFamily, AdminOverview, AdminStaff, AdminStudent, AuditEntry, ago, describeAudit } from '../../core/admin-models';
@@ -22,7 +23,7 @@ interface Everything {
 /** A-02 Administrator overview: every center at a glance, what needs attention, recent activity. */
 @Component({
   selector: 'pl-admin-overview',
-  imports: [RouterLink, LineChart, DonutChart, StackedBars],
+  imports: [RouterLink, DatePipe, LineChart, DonutChart, StackedBars],
   template: `
     <div class="page-head">
       <div>
@@ -41,6 +42,19 @@ interface Everything {
         <a class="adm-stat" routerLink="/admin/families"><strong>{{ a.overview.counts.families }}</strong>Families</a>
         <a class="adm-stat" routerLink="/admin/students"><strong>{{ a.overview.counts.children }}</strong>Children learning</a>
       </div>
+
+      @for (t of a.overview.waitingForClass ?? []; track t.id) {
+        <div class="adm-callout">
+          <span class="ic" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13M2 19h20M9 9h6M9 13h4" /></svg>
+          </span>
+          <p>
+            <strong>{{ t.name }} ({{ t.center }}) asked for a class{{ t.lessonsWaiting ? ' · ' + t.lessonsWaiting + (t.lessonsWaiting === 1 ? ' lesson is' : ' lessons are') + ' waiting' : '' }}.</strong>
+            Teachers can send lessons only to their own classes. Asked {{ t.requestedAt | date: 'd MMM, h:mm a' }}.
+          </p>
+          <a class="btn btn-primary btn-sm" routerLink="/admin/classes">Give a class</a>
+        </div>
+      }
 
       @if (a.overview.counts.parentAddedToReview) {
         <div class="adm-callout">

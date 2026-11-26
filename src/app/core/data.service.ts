@@ -3,9 +3,11 @@ import { ApiError, api, apiMode } from './api';
 import { AuthService } from './auth.service';
 import {
   Assessment,
+  ClassInfo,
   LEVELS,
   Learner,
   Lesson,
+  LessonResult,
   LessonPage,
   Level,
   MAX_CHOICES,
@@ -19,16 +21,22 @@ import { UnitPlan } from './lesson-import';
 import { ProcessError } from './processing';
 import { baselineDay, baselineLevel, neverChecked, sampleHistory } from './sample-history';
 import type { SubjectKey } from './subjects';
+import { CheckKey, PackCheck, packChecks as checkLesson } from './lesson-checks';
+import type { Recording } from '../shared/voice-recorder';
+
+/** What the lesson editor needs to know about the signed-in teacher and her center. */
+export interface TeacherSettings {
+  /** The administrator allows the labelled computer voice at this center, and a speech service is set up. */
+  computerVoice: boolean;
+  /** When the teacher asked the administrator for a class ("Ask your administrator"). */
+  classRequestedAt?: string;
+}
 import { local, media } from './storage';
 
 /** Pack overhead for the lesson manifest and app metadata. */
 const PACK_OVERHEAD = 8 * 1024;
 
-export interface PackCheck {
-  label: string;
-  ok: boolean;
-  detail?: string;
-}
+export type { PackCheck } from './lesson-checks';
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
 
@@ -135,6 +143,19 @@ interface CenterData {
   lessons: Lesson[];
   units: Unit[];
   assessments: Assessment[];
+  classes?: ClassInfo[];
+  results?: LessonResult[];
+  settings?: TeacherSettings;
+}
+
+/** The pilot preview's classes at Better World Tondo (the same groups the server's sample data has). */
+function previewClasses(learners: Learner[]): ClassInfo[] {
+  const count = (lv: Level[]) => learners.filter((l) => lv.includes(l.level)).length;
+  return [
+    { id: 'cls_seed_a', name: 'Group A', program: 'TaRL English', level: 'Letter', schedule: 'Mon to Fri · 1:00 PM', teacherName: 'Ana Reyes', children: count(['Beginner', 'Letter']), mine: true, canSend: true },
+    { id: 'cls_seed_b', name: 'Group B', program: 'TaRL Filipino', level: 'Word', schedule: 'Mon to Fri · 3:00 PM', teacherName: 'Ana Reyes', children: count(['Word']), mine: true, canSend: true },
+    { id: 'cls_seed_c', name: 'Group C', program: 'Pagbasa', level: 'Paragraph', schedule: 'Mon to Fri · 4:30 PM', children: count(['Paragraph', 'Story']), mine: false, canSend: false },
+  ];
 }
 
 /**
@@ -149,6 +170,10 @@ export class DataService {
   readonly lessons = signal<Lesson[]>([]);
   readonly assessments = signal<Assessment[]>([]);
   readonly units = signal<Unit[]>([]);
+  /** The center's classes (lessons are sent to classes) and what children finished on the family phones. */
+  readonly classes = signal<ClassInfo[]>([]);
+  readonly results = signal<LessonResult[]>([]);
+  readonly settings = signal<TeacherSettings>({ computerVoice: false });
 
   /** False while the signed-in center's records are loading from the server. */
   readonly ready = signal(!apiMode);
@@ -211,6 +236,7 @@ export class DataService {
     this.lessons.set(local.get<Lesson[]>('lessons', []));
     this.assessments.set(local.get<Assessment[]>('assessments', []));
     this.units.set(local.get<Unit[]>('units', []));
+    this.classes.set(previewClasses(this.learners()));
   }
 
   // ---------- Server (API mode) ----------
@@ -222,6 +248,8 @@ export class DataService {
     this.lessons.set([]);
     this.assessments.set([]);
     this.units.set([]);
+    this.classes.set([]);
+    this.results.set([]);
     this.syncError.set('');
     this.ready.set(false);
     if (userId) void this.load();
@@ -239,6 +267,9 @@ export class DataService {
       this.lessons.set(d.lessons);
       this.units.set(d.units);
       this.assessments.set(d.assessments);
+      this.classes.set(d.classes ?? []);
+      this.results.set(d.results ?? []);
+      this.settings.set(d.settings ?? { computerVoice: false });
       this.ready.set(true);
     } catch (err) {
       if (userId !== this.loadedFor || (err instanceof ApiError && err.status === 401)) return;
@@ -423,6 +454,7 @@ export class DataService {
       status: 'draft',
       version: 1,
       assignedLevels: [level],
+      classIds: this.defaultClassIds(),
       createdAt: now,
       updatedAt: now,
     };
@@ -486,6 +518,7 @@ export class DataService {
       status: 'draft' as const,
       version: 1,
       assignedLevels: [info.level],
+      classIds: this.defaultClassIds(),
       createdAt: now,
       updatedAt: now,
       unitId: unit.id,
@@ -543,41 +576,33 @@ export class DataService {
   }
 
   packChecks(lesson: Lesson): PackCheck[] {
-    const bytes = this.packBytes(lesson);
-    const noText = lesson.pages.filter((p) => !p.text.trim()).length;
-    const noAudio = lesson.pages.filter((p) => !p.audioId).length;
-    const badActivities = lesson.activities.filter(
-      (a) =>
-        !a.prompt.trim() ||
-        a.choices.length < MIN_CHOICES ||
-        a.choices.length > MAX_CHOICES ||
-        a.choices.some((c) => !c.trim()) ||
-        a.answer < 0 ||
-        a.answer >= a.choices.length,
-    ).length;
-    const checkpoint = lesson.kind === 'checkpoint';
-    return [
-      { label: 'Lesson has a title', ok: lesson.title.trim().length > 0 },
-      { label: 'Subject chosen', ok: !!lesson.subject, detail: lesson.subject ? undefined : 'Choose a subject in Lesson basics' },
-      { label: 'Every page has text', ok: lesson.pages.length > 0 && noText === 0, detail: noText ? `${noText} page(s) empty` : undefined },
-      {
-        label: 'Every page has your recorded voice',
-        ok: lesson.pages.length > 0 && noAudio === 0,
-        detail: noAudio ? `${noAudio} page(s) need a recording` : undefined,
-      },
-      { label: 'Activities are complete', ok: badActivities === 0, detail: badActivities ? `${badActivities} activity(ies) incomplete` : undefined },
-      ...(checkpoint
-        ? [{ label: 'Checkpoint has questions', ok: lesson.activities.length > 0, detail: lesson.activities.length ? undefined : 'Add the story questions' }]
-        : []),
-      { label: 'Assigned to at least one reading level', ok: lesson.assignedLevels.length > 0 },
-      { label: 'Pack is under 2 MB', ok: bytes <= PACK_LIMIT_BYTES },
-    ];
+    return checkLesson(lesson, this.packBytes(lesson));
+  }
+
+  /** "Ask your administrator": a teacher with no class asks for one (it shows on the administrator's dashboard). */
+  async requestClass(): Promise<void> {
+    const at = apiMode ? (await api.post<{ classRequestedAt: string }>('/classes/request', {})).classRequestedAt : new Date().toISOString();
+    this.settings.update((s) => ({ ...s, classRequestedAt: at }));
+  }
+
+  /** The labelled computer voice for one page's text (only where the administrator allows it). */
+  async computerVoice(text: string): Promise<Recording & { voice: 'computer' }> {
+    const id = uid('aud');
+    const r = await api.post<Recording & { voice: 'computer' }>(`/speech/${id}`, { text });
+    return { audioId: r.audioId, audioBytes: r.audioBytes, audioSeconds: r.audioSeconds, voice: 'computer' };
+  }
+
+  /** A teacher with one class sends there by default; with several, they choose before publishing. */
+  defaultClassIds(): string[] {
+    const mine = this.classes().filter((c) => c.canSend);
+    return mine.length === 1 ? [mine[0].id] : [];
   }
 
   /** Publishing locks a version. Editing a published lesson returns it to draft; publishing again makes the next version. */
-  publish(lesson: Lesson): Lesson {
+  publish(lesson: Lesson, skipped: CheckKey[] = []): Lesson {
     const published: Lesson = {
       ...lesson,
+      skippedChecks: skipped,
       status: 'published',
       version: lesson.publishedAt ? lesson.version + 1 : lesson.version,
       publishedAt: new Date().toISOString(),

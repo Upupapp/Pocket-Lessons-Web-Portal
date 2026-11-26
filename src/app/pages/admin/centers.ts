@@ -62,6 +62,13 @@ import { FormDialog } from '../../shared/form-dialog';
               }
             </div>
           </div>
+          <label class="cv">
+            <input type="checkbox" [checked]="!!c.computerVoice" (change)="computerVoice(c, $any($event.target).checked, $event)" [disabled]="busy()" />
+            <span>
+              <strong>Allow a computer voice</strong>
+              <span class="hint">For lesson pages a teacher has not recorded yet. It is labelled “Computer voice” in the portal and on the phone, and her own recording replaces it. Off by default.</span>
+            </span>
+          </label>
         </article>
       } @empty {
         @if (!error()) { <p class="muted" role="status">Loading…</p> }
@@ -71,6 +78,9 @@ import { FormDialog } from '../../shared/form-dialog';
   styles: `
     .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 16px; }
     .center h2 { font-family: var(--serif); font-size: 21px; }
+    .cv { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); cursor: pointer; font-size: 14px; }
+    .cv input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+    .cv > span { display: grid; gap: 2px; }
     .counts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 16px; font-size: 14px; }
     .counts a { text-decoration: none; color: var(--muted); }
     .counts strong { color: var(--ink); }
@@ -132,6 +142,28 @@ export class AdminCentersPage {
     });
     this.busy.set(false);
     if (!r.ok) this.formError.set(r.error);
+  }
+
+  async computerVoice(c: AdminCenter, on: boolean, event?: Event): Promise<void> {
+    if (on && !confirm(`Allow a labelled computer voice at ${c.name}? Teachers can use it for pages they have not recorded yet. Children always see that it is a computer voice.`)) {
+      this.centers.update((list) => [...list]);
+      return;
+    }
+    this.busy.set(true);
+    this.error.set('');
+    const r = await this.processing.run({
+      title: on ? 'Allowing the computer voice' : 'Turning the computer voice off',
+      detail: c.name,
+      from: event,
+      quick: true,
+      errorText: adminError,
+      run: async () => {
+        const updated = await this.admin.setComputerVoice(c.id, on);
+        this.centers.update((list) => list.map((x) => (x.id === c.id ? updated : x)));
+      },
+    });
+    this.busy.set(false);
+    if (!r.ok) this.error.set(r.error);
   }
 
   async invitation(c: AdminCenter, action: 'new' | 'on' | 'off', event?: Event): Promise<void> {

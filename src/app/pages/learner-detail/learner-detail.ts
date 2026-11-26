@@ -78,6 +78,29 @@ import { FormDialog } from '../../shared/form-dialog';
       </section>
 
       <section class="card">
+        <h2>Lessons finished on the phone</h2>
+        @if (phoneLessons().length) {
+          <div class="table-scroll">
+          <table class="table stack-xs">
+            <thead><tr><th>Finished</th><th>Lesson</th><th>Practice</th><th class="hide-xs">Time</th></tr></thead>
+            <tbody>
+              @for (r of phoneLessons(); track r.id) {
+                <tr>
+                  <td>{{ r.completedAt | date: 'd MMM y, h:mm a' }}</td>
+                  <td>{{ r.title }}@if (r.version > 1) { <span class="small muted"> · v{{ r.version }}</span> }</td>
+                  <td class="small">{{ r.questions ? r.correct + ' of ' + r.questions + ' right first try' : 'No questions' }}</td>
+                  <td class="small muted hide-xs">{{ r.minutes }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          </div>
+        } @else {
+          <div class="empty">Nothing yet. Lessons this child finishes on the family phone show here after the phone's next check-in.</div>
+        }
+      </section>
+
+      <section class="card">
         <h2>Checks</h2>
         @if (history().length) {
           <div class="table-scroll">
@@ -140,6 +163,22 @@ export class LearnerDetail {
   readonly levels = LEVELS;
   readonly learner = computed(() => this.data.learner(this.id()));
   readonly history = computed(() => this.data.assessmentsFor(this.id()));
+  /** What the child finished on the family phone, newest first. */
+  readonly phoneLessons = computed(() => {
+    const titles = new Map(this.data.lessons().map((l) => [l.id, l.title]));
+    return this.data
+      .results()
+      .filter((r) => r.learnerId === this.id())
+      .map((r) => ({
+        id: r.id,
+        completedAt: r.completedAt,
+        title: titles.get(r.lessonId) || 'A lesson that was removed',
+        version: r.lessonVersion,
+        correct: r.correct,
+        questions: r.questions,
+        minutes: r.seconds < 60 ? `${r.seconds} s` : `${Math.round(r.seconds / 60)} min`,
+      }));
+  });
   readonly current = computed(() => (this.learner() ? levelIndex(this.learner()!.level) : -1));
   readonly baseline = computed(() => {
     const first = [...this.history()].reverse()[0];

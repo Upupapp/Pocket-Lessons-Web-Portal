@@ -6,6 +6,7 @@ import { ImportDraft, ImportDraftData } from '../../core/import-draft';
 import { ImportDialog } from '../../shared/import-dialog';
 import { DataService } from '../../core/data.service';
 import { LEVELS, Lesson, Level, PACK_LIMIT_BYTES, Unit, formatBytes, plural } from '../../core/models';
+import { lessonIssues } from '../../core/lesson-checks';
 import { Processing } from '../../core/processing';
 import { apiMode } from '../../core/api';
 import { SUBJECTS, subjectIcon, subjectOf } from '../../core/subjects';
@@ -118,6 +119,9 @@ type Filter = 'all' | 'draft' | 'published';
               <span class="pill" [class.pill-teal]="l.status === 'published'" [class.pill-grey]="l.status === 'draft'">
                 {{ l.status === 'published' ? 'Published v' + l.version : 'Draft' }}
               </span>
+              @if (l.status === 'published' && (l.skippedChecks ?? []).length) {
+                <span class="pill pill-sun">{{ missing(l) }} missing</span>
+              }
               <span class="small muted">{{ l.language }}</span>
             </div>
             <h2>{{ l.title || 'Untitled lesson' }}</h2>
@@ -305,8 +309,13 @@ export class Lessons {
     return l.pages.length > 0 && l.pages.every((p) => p.audioId);
   }
 
+  /** Parts left for later in a lesson published with "Publish anyway". */
+  missing(l: Lesson): number {
+    return lessonIssues(l, this.data.packBytes(l), true).length;
+  }
+
   stateLabel(l: Lesson): string {
-    if (l.status === 'published') return 'Published';
+    if (l.status === 'published') return (l.skippedChecks ?? []).length ? `Published · ${this.missing(l)} missing` : 'Published';
     if (this.isRecorded(l)) return 'Recorded';
     return `${this.recorded(l.pages)}/${l.pages.length} recorded`;
   }

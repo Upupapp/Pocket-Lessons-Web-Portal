@@ -101,13 +101,15 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
 }
 .ok .tick { background: var(--mint); color: var(--teal-dark); }
 
-.level-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.chip {
-  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--white);
-  font-weight: 700; font-size: 14px; cursor: pointer; user-select: none;
-  &.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.class-list { display: grid; gap: 8px; margin-top: 12px; }
+.class-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--white); cursor: pointer;
+  input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+  &.on { border-color: var(--accent); background: var(--accent-tint, var(--mint)); }
   &:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
 }
+.class-text { display: grid; gap: 2px; min-width: 0; }
 .actions { display: grid; gap: 10px; }
 .center { text-align: center; }
 
@@ -127,3 +129,37 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
   display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px 1px 4px; border-radius: 999px; margin-right: 4px;
   background: var(--tint); color: var(--deep); font-weight: 700; font-size: 12px;
 }
+
+// ---------- What's missing: the part "Show me" lands on glows for a moment ----------
+.jump-glow { animation: jump-glow 2.1s ease-out; border-radius: 14px; }
+@keyframes jump-glow {
+  0%, 30% { box-shadow: 0 0 0 4px #f6cc59, 0 0 0 10px rgba(246, 204, 89, .35); }
+  100% { box-shadow: 0 0 0 0 rgba(246, 204, 89, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .jump-glow { animation: none; outline: 3px solid #f6cc59; outline-offset: 3px; } }
+.page, .activity, .card { scroll-margin: 90px 0 120px; }
+
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.cv-pill { justify-self: start; }
+.looks-right { margin-left: 4px; }
+.checks li.need .tick { background: var(--red-bg); color: var(--red); }
+.need-tag { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: .04em; }
+.see-missing { margin-top: 10px; font-weight: 700; }
+.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.asked { color: var(--good); font-weight: 700; }
+.pill-btn { border: 0; cursor: pointer; font: inherit; }
+.skip-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 10px; }
+.skip-list li { padding: 10px 12px; border-radius: 10px; background: var(--warn-bg, #fbf3dc); }
+.skip-list li span { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 2px; }
+
+// ---------- Room for the "What's missing" panel (wide screens) ----------
+:host { display: block; container-type: inline-size; transition: padding-right .2s ease; }
+@media (min-width: 761px) {
+  :host(.with-panel) { padding-right: 428px; }
+}
+// The editor's two columns stack when it is narrow, whatever makes it narrow (the window or the panel).
+@container (max-width: 860px) {
+  .grid { grid-template-columns: 1fr; }
+  .side { position: static; }
+}
+@media (prefers-reduced-motion: reduce) { :host { transition: none; } }

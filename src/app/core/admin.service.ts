@@ -79,6 +79,11 @@ export class AdminService {
     return this.run(() => api.post<AdminCenter>('/admin/centers', { name }), (d) => d.createCenter(name));
   }
 
+  /** Allow (or stop) the labelled computer voice at one center. */
+  setComputerVoice(centerId: string, on: boolean): Promise<AdminCenter> {
+    return this.run(() => api.patch<AdminCenter>(`/admin/centers/${centerId}`, { computerVoice: on }), (d) => d.setComputerVoice(centerId, on));
+  }
+
   setInvitation(centerId: string, action: 'new' | 'on' | 'off'): Promise<AdminCenter> {
     return this.run(() => api.post<AdminCenter>(`/admin/centers/${centerId}/invitation`, { action }), (d) => d.setInvitation(centerId, action));
   }

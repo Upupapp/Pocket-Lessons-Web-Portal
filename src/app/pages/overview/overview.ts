@@ -11,6 +11,7 @@ import { LineChart } from '../../shared/charts/line-chart';
 import { RingMeter } from '../../shared/charts/ring';
 import { SparkList } from '../../shared/charts/spark-list';
 import { UpDownChart } from '../../shared/charts/updown-chart';
+import { CHECK_LABELS, lessonIssues } from '../../core/lesson-checks';
 
 /** Teacher dashboard (WEB-01): reading progress at a glance, then what needs doing today. */
 @Component({
@@ -154,6 +155,27 @@ import { UpDownChart } from '../../shared/charts/updown-chart';
           <div class="empty">No checks yet.</div>
         }
       </section>
+      @if (toFinish().length) {
+        <section class="card finish">
+          <div class="sec-head">
+            <h2>Lessons to finish</h2>
+          </div>
+          <p class="small muted">Published with parts left for later. Families have them; finish and publish again to send the complete version.</p>
+          <ul class="lessons">
+            @for (x of toFinish(); track x.lesson.id) {
+              <li>
+                <a [routerLink]="['/app/lessons', x.lesson.id]">
+                  <div class="l-main">
+                    <strong>{{ x.lesson.title || 'Untitled lesson' }}</strong>
+                    <span class="small muted">{{ x.what }}</span>
+                  </div>
+                  <div class="l-side"><span class="pill pill-sun">{{ x.count }} missing</span></div>
+                </a>
+              </li>
+            }
+          </ul>
+        </section>
+      }
       <section class="card">
         <div class="sec-head">
           <h2>Your lessons</h2>
@@ -171,6 +193,7 @@ import { UpDownChart } from '../../shared/charts/updown-chart';
                   </div>
                   <div class="l-side">
                     <span class="pill" [class.pill-teal]="l.status === 'published'" [class.pill-grey]="l.status === 'draft'">{{ l.status === 'published' ? 'Published' : 'Draft' }}</span>
+                    @if (l.status === 'published' && (l.skippedChecks ?? []).length) { <span class="pill pill-sun">Finish later</span> }
                     <span class="small muted">{{ fmt(data.packBytes(l)) }}</span>
                   </div>
                 </a>
@@ -245,6 +268,17 @@ export class Overview {
   readonly published = computed(() => this.data.lessons().filter((l) => l.status === 'published'));
   readonly drafts = computed(() => this.data.lessons().filter((l) => l.status === 'draft'));
   readonly groupsInUse = computed(() => this.data.levelCounts().filter((g) => g.count > 0).length);
+  /** Lessons published with "Publish anyway", with what is still missing. */
+  readonly toFinish = computed(() =>
+    this.data
+      .lessons()
+      .filter((l) => l.status === 'published' && (l.skippedChecks ?? []).length)
+      .map((lesson) => {
+        const issues = lessonIssues(lesson, this.data.packBytes(lesson), true);
+        const kinds = [...new Set(issues.map((i) => CHECK_LABELS[i.check].toLowerCase()))];
+        return { lesson, count: issues.length, what: kinds.join(' · ') };
+      }),
+  );
   readonly recentLessons = computed(() => [...this.data.lessons()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4));
   readonly latest = computed(() => [...this.data.assessments()].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6));
   readonly recentChecks = computed(() => this.data.assessments().filter((a) => daysSince(a.date) <= 30).length);

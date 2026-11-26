@@ -30,6 +30,7 @@
     }
     <div class="title-row">
       <input
+        id="f-title"
         class="title"
         [ngModel]="l.title"
         (ngModelChange)="patch({ title: $event })"
@@ -44,6 +45,9 @@
           <span class="pill pill-sun">Draft of v{{ l.version + 1 }} · v{{ l.version }} is live</span>
         } @else {
           <span class="pill pill-grey">Draft</span>
+        }
+        @if (l.status === 'published' && (l.skippedChecks ?? []).length) {
+          <button type="button" class="pill pill-sun pill-btn" (click)="openPanel()">{{ issues().length }} missing · finish later</button>
         }
         <span class="small muted" aria-live="polite">
           {{ savedText() }}
@@ -83,7 +87,7 @@
           </label>
           <label class="field">
             <span>Subject</span>
-            <select class="select" [class.need]="!l.subject" [ngModel]="l.subject ?? ''" (ngModelChange)="setSubject($event)">
+            <select id="f-subject" class="select" [class.need]="!l.subject" [ngModel]="l.subject ?? ''" (ngModelChange)="setSubject($event)">
               @if (!l.subject) { <option value="" disabled>Choose a subject</option> }
               @for (s of subjects; track s.key) { <option [value]="s.key">{{ s.childEn }} · {{ s.world }}</option> }
             </select>
@@ -127,7 +131,7 @@
 
         <ol class="pages">
           @for (p of l.pages; track p.id; let i = $index, first = $first, last = $last) {
-            <li class="page">
+            <li class="page" [id]="'pg-' + p.id">
               <div class="page-top">
                 <span class="num">{{ i + 1 }}</span>
                 <div class="page-tools">
@@ -160,6 +164,9 @@
                     placeholder="Type what the child will read on this page"
                     maxlength="400"
                   ></textarea>
+                  @if (p.voice === 'computer') {
+                    <span class="pill pill-sun cv-pill">Computer voice · record yours to replace it</span>
+                  }
                   <pl-voice-recorder [audioId]="p.audioId" (recorded)="onRecorded(i, $event)" (removed)="onRecordingRemoved(i)" />
                   @if (p.audioBytes) {
                     <span class="small muted">Voice: {{ p.audioSeconds }} s · {{ fmt(p.audioBytes) }}@if (p.pictureBytes) { · Picture: {{ fmt(p.pictureBytes) }} }</span>
@@ -169,11 +176,16 @@
             </li>
           }
         </ol>
-        <button type="button" class="btn btn-ghost" (click)="addPage()">+ Add page</button>
+        <div class="row-btns">
+          <button type="button" class="btn btn-ghost" (click)="addPage()">+ Add page</button>
+          @if (l.pages.length > 1) {
+            <button type="button" class="btn btn-ghost" (click)="fix({ id: 'rec', check: 'voice', required: false, where: '', what: '', target: '', fix: 'record-all' })">● Record all pages</button>
+          }
+        </div>
       </section>
 
       <!-- Tap-only activities (WEB-10) -->
-      <section class="card">
+      <section class="card" id="sec-acts">
         <div class="section-head">
           <div>
             <h2>{{ isCheckpoint() ? 'Checkpoint questions' : 'Activities' }}</h2>
@@ -182,10 +194,13 @@
           @if (l.activities.length) { <span class="pill pill-grey">{{ recordedQuestions() }} of {{ l.activities.length }} recorded</span> }
         </div>
         @for (a of l.activities; track a.id; let i = $index, first = $first, last = $last) {
-          <div class="activity">
+          <div class="activity" [id]="'act-' + a.id">
             <div class="act-head">
               <strong>{{ isCheckpoint() ? 'Question' : 'Activity' }} {{ i + 1 }}</strong>
-              @if (a.auto) { <span class="pill pill-sun">Made automatically · please check</span> }
+              @if (a.auto) {
+                <span class="pill pill-sun">Suggested · please check</span>
+                <button type="button" class="btn btn-ghost btn-sm looks-right" (click)="patchActivity(i, { auto: false })">Looks right</button>
+              }
               <div class="page-tools">
                 <button type="button" class="icon" (click)="moveActivity(i, -1)" [disabled]="first" aria-label="Move up">↑</button>
                 <button type="button" class="icon" (click)="moveActivity(i, 1)" [disabled]="last" aria-label="Move down">↓</button>
@@ -218,7 +233,12 @@
         } @empty {
           <p class="small muted none">No activities yet. Activities are optional but help children practise.</p>
         }
-        <button type="button" class="btn btn-ghost" (click)="addActivity()">+ Add {{ isCheckpoint() ? 'question' : 'activity' }}</button>
+        <div class="row-btns">
+          <button type="button" class="btn btn-ghost" (click)="addActivity()">+ Add {{ isCheckpoint() ? 'question' : 'activity' }}</button>
+          @if (isCheckpoint()) {
+            <button type="button" class="btn btn-ghost" (click)="suggest()">✦ Suggest questions from the story</button>
+          }
+        </div>
       </section>
 
       @if (!isCheckpoint()) {
@@ -244,7 +264,7 @@
 
     <!-- Pack check, assignment and publishing (WEB-12, WEB-13) -->
     <aside class="col side">
-      <section class="card">
+      <section class="card" id="sec-pack">
         <h2>Pack check</h2>
         <div class="size">
           <div class="size-row">
@@ -256,34 +276,62 @@
         </div>
         <ul class="checks">
           @for (c of checks(); track c.label) {
-            <li [class.ok]="c.ok">
+            <li [class.ok]="c.ok" [class.need]="!c.ok && c.required">
               <span class="tick" aria-hidden="true">{{ c.ok ? '✓' : '!' }}</span>
-              <span>{{ c.label }}@if (c.detail) { <em>{{ c.detail }}</em> }</span>
+              <span>{{ c.label }}@if (!c.ok && c.required) { <b class="need-tag">Needed</b> }@if (c.detail) { <em>{{ c.detail }}</em> }</span>
               <span class="sr-only">{{ c.ok ? 'done' : 'to do' }}</span>
             </li>
           }
         </ul>
+        @if (issues().length) {
+          <button type="button" class="link see-missing" (click)="openPanel()">See what’s missing and fix it ›</button>
+        }
       </section>
 
-      <section class="card">
-        <h2>Send to reading levels</h2>
-        <p class="small muted">Children get lessons by reading level, not by grade.</p>
-        <div class="level-chips">
-          @for (lv of levels; track lv) {
-            <label class="chip" [class.on]="l.assignedLevels.includes(lv)">
-              <input type="checkbox" class="sr-only" [checked]="l.assignedLevels.includes(lv)" (change)="toggleLevel(lv)" />
-              {{ lv }}
-            </label>
+      <section class="card" id="sec-classes">
+        <h2>Send to classes</h2>
+        <p class="small muted">Only children in these classes get the lesson on their family phones.</p>
+        @if (sendable().length) {
+          <div class="class-list">
+            @for (c of sendable(); track c.id) {
+              <label class="class-row" [class.on]="(l.classIds ?? []).includes(c.id)">
+                <input type="checkbox" [checked]="(l.classIds ?? []).includes(c.id)" (change)="toggleClass(c.id)" />
+                <span class="class-text">
+                  <strong>{{ c.name }}</strong>
+                  <span class="small muted">{{ c.program }} · {{ c.level }} · {{ c.children }} {{ c.children === 1 ? 'child' : 'children' }}</span>
+                </span>
+              </label>
+            }
+          </div>
+        } @else {
+          <p class="small muted">You have no classes yet. Ask your administrator to add you to a class.</p>
+          @if (settings().classRequestedAt; as at) {
+            <p class="small asked">Asked your administrator on {{ at | date: 'd MMM' }}.</p>
+          } @else {
+            <button type="button" class="btn btn-ghost btn-sm" (click)="fix({ id: 'class', check: 'class', required: true, where: '', what: '', target: '', fix: 'ask-admin' }, $event)">Ask your administrator</button>
           }
-        </div>
+        }
+        @for (c of othersOnLesson(); track c.id) {
+          <p class="small muted">Also sent to {{ c.name }}{{ c.teacherName ? ' (' + c.teacherName + '’s class)' : '' }}.</p>
+        }
       </section>
 
       <div class="actions">
         <button type="button" class="btn btn-ghost" (click)="previewOpen.set(true)" [disabled]="!l.pages.length">Preview as the child</button>
-        <button type="button" class="btn btn-primary" (click)="publish($event)" [disabled]="!ready() || l.status === 'published'">
-          {{ l.status === 'published' ? 'Published' : l.publishedAt ? 'Publish version ' + (l.version + 1) : 'Publish lesson' }}
-        </button>
-        @if (!ready()) { <p class="small muted center">Finish the pack check to publish.</p> }
+        @switch (publishState()) {
+          @case ('ready') {
+            <button type="button" class="btn btn-primary" (click)="publish($event)">{{ l.publishedAt ? 'Publish version ' + (l.version + 1) : 'Publish lesson' }}</button>
+          }
+          @case ('anyway') {
+            <button type="button" class="btn btn-primary" (click)="askPublishAnyway()">Publish anyway ({{ issues().length }} missing)</button>
+            <p class="small muted center">Or <button type="button" class="link" (click)="openPanel()">finish what’s missing</button> first.</p>
+          }
+          @case ('blocked') {
+            <button type="button" class="btn btn-primary" disabled>{{ l.publishedAt ? 'Publish version ' + (l.version + 1) : 'Publish lesson' }}</button>
+            <p class="small muted center">{{ requiredMissing() === 1 ? '1 needed part is' : requiredMissing() + ' needed parts are' }} missing. <button type="button" class="link" (click)="openPanel()">See what’s missing</button></p>
+          }
+          @default { <button type="button" class="btn btn-primary" disabled>Published</button> }
+        }
         <button type="button" class="btn btn-danger btn-sm" (click)="deleteLesson($event)">Delete lesson</button>
       </div>
     </aside>
@@ -292,4 +340,49 @@
   @if (previewOpen()) {
     <pl-lesson-preview [lesson]="l" [path]="path()" [unitTitle]="unit()?.title ?? ''" (closed)="previewOpen.set(false)" />
   }
+
+  @if (recordAllOpen()) {
+    <pl-record-all
+      [pages]="l.pages"
+      [start]="recordAllStart()"
+      (recorded)="onRecorded($event.index, $event.rec)"
+      (removed)="onRecordingRemoved($event)"
+      (closed)="recordAllOpen.set(false)"
+    />
+  }
+
+  @if (anywayOpen()) {
+    <pl-form-dialog #anyway title="Publish anyway?" eyebrow="Some parts are left for later" lead="Families get this version now. When you finish the rest, publish again and they get the new version at their next check-in." (closed)="anywayOpen.set(false)">
+      <ul class="skip-list">
+        @for (s of skipList(); track s.key) {
+          <li><strong>{{ s.label }}</strong>@if (s.count > 1) { · {{ s.count }} }<span>{{ s.effect }}</span></li>
+        }
+      </ul>
+      <div class="dlg-actions">
+        <button type="button" class="btn btn-ghost" (click)="anyway.close()">Not yet</button>
+        <button type="button" class="btn btn-primary" (click)="publish($event, skipList().map(x => x.key))">Publish anyway</button>
+      </div>
+    </pl-form-dialog>
+  }
+
+  <pl-missing-panel
+    [issues]="issues()"
+    [unit]="unitRows()"
+    [state]="publishState()"
+    [computerVoice]="settings().computerVoice"
+    [classRequestedAt]="settings().classRequestedAt"
+    [titleSuggestion]="titleSuggestion()"
+    [subjectSuggestion]="subjectSuggestionName()"
+    [undoText]="undoText()"
+    (openChange)="panelOpen.set($event)"
+    (show)="jumpTo($event)"
+    (fix)="fix($event)"
+    (fixOne)="computerVoice($event)"
+    (fixAll)="computerVoiceAll()"
+    (openLesson)="openOtherLesson($event)"
+    (publish)="publish()"
+    (publishAnyway)="askPublishAnyway()"
+    (publishUnit)="publishUnit()"
+    (undo)="undo()"
+  />
 }

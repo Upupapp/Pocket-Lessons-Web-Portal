@@ -46,6 +46,8 @@ export interface LessonPage {
   audioSeconds?: number;
   pictureId?: string;
   pictureBytes?: number;
+  /** "computer": a labelled computer voice stands in until the teacher records this page herself. */
+  voice?: 'teacher' | 'computer';
 }
 
 /** A tap question. Children answer by tapping one of 2 to 4 choices, never by typing. */
@@ -83,6 +85,10 @@ export interface Lesson {
   status: LessonStatus;
   version: number;
   assignedLevels: Level[];
+  /** The classes that get this lesson: only children in them download it. Needed before publishing. */
+  classIds?: string[];
+  /** "Publish anyway": what the published version left out (for example ["voice"]), to finish later. */
+  skippedChecks?: import('./lesson-checks').CheckKey[];
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
@@ -109,6 +115,34 @@ export interface Unit {
   /** The subject world of the whole unit; its lessons share it. */
   subject?: SubjectKey;
   createdAt: string;
+}
+
+/** A class at the teacher's center, for the "Send to classes" picker. The administrator manages classes. */
+export interface ClassInfo {
+  id: string;
+  name: string;
+  program: string;
+  level: string;
+  schedule: string;
+  teacherName?: string;
+  children: number;
+  /** The signed-in teacher's own class. */
+  mine: boolean;
+  /** Teachers can send lessons only to their own classes. */
+  canSend: boolean;
+}
+
+/** A lesson a child finished on the family phone (sent back at the phone's next check-in). */
+export interface LessonResult {
+  id: string;
+  learnerId: string;
+  lessonId: string;
+  lessonVersion: number;
+  completedAt: string;
+  receivedAt: string;
+  correct: number;
+  questions: number;
+  seconds: number;
 }
 
 export type AssessmentType = 'placement' | 'fluency';

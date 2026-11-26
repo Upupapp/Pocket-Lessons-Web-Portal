@@ -15,6 +15,8 @@ export interface AdminCenter {
   name: string;
   invitationCode: string;
   invitationActive: boolean;
+  /** A labelled computer voice may stand in for pages a teacher has not recorded yet. */
+  computerVoice?: boolean;
   staff: number;
   classes: number;
   families: number;
@@ -113,9 +115,20 @@ export interface AuditEntry {
   entityId: string;
 }
 
+/** A teacher who asked for a class ("Ask your administrator") and has none yet. */
+export interface WaitingTeacher {
+  id: string;
+  name: string;
+  centerId: string;
+  center: string;
+  requestedAt: string;
+  lessonsWaiting: number;
+}
+
 export interface AdminOverview {
   counts: { centers: number; staff: number; families: number; children: number; classes: number; parentAddedToReview: number };
   recent: AuditEntry[];
+  waitingForClass?: WaitingTeacher[];
 }
 
 export interface StaffInput {

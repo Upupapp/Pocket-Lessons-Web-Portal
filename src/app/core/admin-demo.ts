@@ -28,6 +28,7 @@ interface DCenter {
   name: string;
   invitationCode: string;
   invitationActive: boolean;
+  computerVoice?: boolean;
 }
 interface DStaff {
   id: string;
@@ -432,6 +433,13 @@ export class AdminDemoStore {
     const c: DCenter = { id: id('ctr'), name: clean, invitationCode: this.inviteCode(clean), invitationActive: true };
     this.state.centers.push(c);
     this.commit('create', 'center', c.id, c.id);
+    return this.centers().find((x) => x.id === c.id)!;
+  }
+
+  setComputerVoice(centerId: string, on: boolean): AdminCenter {
+    const c = this.center(centerId);
+    c.computerVoice = on;
+    this.commit(on ? 'computer-voice-on' : 'computer-voice-off', 'center', c.id, c.id);
     return this.centers().find((x) => x.id === c.id)!;
   }
 
