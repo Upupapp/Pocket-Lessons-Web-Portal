@@ -1,9 +1,21 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, inject, signal } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { API_URL } from '../core/api';
 import { session } from '../core/storage';
 
-/** Where the staging server serves the tester app page (password-protected, see the backend's deploy/Caddyfile). */
-export const APP_PAGE = '/get-the-app/';
+/**
+ * The tester app page lives on the staging server itself (password-protected, see the backend's deploy/Caddyfile),
+ * so the link uses the server's address: it works from the server's own portal and from Netlify alike.
+ */
+export const APP_PAGE = appPage(API_URL);
+
+export function appPage(apiUrl: string): string {
+  try {
+    return `${new URL(apiUrl).origin}/get-the-app/`;
+  } catch {
+    return '/get-the-app/';
+  }
+}
 
 /**
  * Staging only: a "Get the app" link at the top right of the sign-in page, and, 1 second after the page is shown
