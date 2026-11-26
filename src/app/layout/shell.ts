@@ -5,6 +5,7 @@ import { AuthService } from '../core/auth.service';
 import { DataService } from '../core/data.service';
 import { Processing } from '../core/processing';
 import { Logo } from '../shared/logo';
+import { SignOutDialog } from '../shared/sign-out-dialog';
 import { WaveBg } from '../shared/wave-bg';
 
 interface NavItem {
@@ -23,7 +24,7 @@ const NAV: NavItem[] = [
 
 @Component({
   selector: 'pl-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo, WaveBg],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo, WaveBg, SignOutDialog],
   template: `
     <div class="layout ws" [class.open]="menuOpen()">
       <aside class="side">
@@ -52,8 +53,11 @@ const NAV: NavItem[] = [
             <span>{{ auth.user()?.role }} · {{ auth.user()?.center }}</span>
           </div>
         </div>
-        <button type="button" class="out" (click)="signOut($event)">Sign out</button>
+        <button type="button" class="out" (click)="askSignOut($event)">Sign out</button>
       </aside>
+      @if (confirmOut()) {
+        <pl-sign-out-dialog [name]="auth.user()?.name ?? ''" [saving]="data.syncing()" (confirmed)="signOut()" (cancelled)="confirmOut.set(false)" />
+      }
 
       <div class="main">
         <!-- A soft green essence behind the content: still, in the corners, never behind the cards' text. -->
@@ -186,12 +190,23 @@ export class Shell {
       .join(''),
   );
 
+  /** "Sign out?" first (Cancel or Continue). */
+  readonly confirmOut = signal(false);
+  private outButton: Element | null = null;
+
+  askSignOut(event: Event): void {
+    this.outButton = event.currentTarget as Element;
+    this.confirmOut.set(true);
+  }
+
   /** Signing out waits for changes still on their way to the server, so nothing is lost. */
-  async signOut(event: Event): Promise<void> {
+  async signOut(): Promise<void> {
+    this.confirmOut.set(false);
     await this.processing.run({
       title: 'Signing you out',
       detail: this.auth.user()?.name,
-      from: event,
+      // The loader grows out of the sidebar's Sign out button.
+      from: this.outButton,
       steps: [
         { label: 'Saving your last changes', detail: apiMode ? 'Making sure the server has everything' : 'Kept in this browser', run: () => this.data.flush() },
         {

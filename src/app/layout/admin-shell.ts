@@ -5,6 +5,7 @@ import { apiMode } from '../core/api';
 import { AuthService } from '../core/auth.service';
 import { Processing } from '../core/processing';
 import { Logo } from '../shared/logo';
+import { SignOutDialog } from '../shared/sign-out-dialog';
 import { WaveBg } from '../shared/wave-bg';
 
 interface NavItem {
@@ -29,7 +30,7 @@ const NAV: NavItem[] = [
 /** The administrator's workspace: one AHA-wide administrator, every center. */
 @Component({
   selector: 'pl-admin-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo, WaveBg],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Logo, WaveBg, SignOutDialog],
   template: `
     <div class="layout ws" [class.open]="menuOpen()">
       <aside class="side">
@@ -55,8 +56,11 @@ const NAV: NavItem[] = [
             <span>Administrator · {{ auth.user()?.center }}</span>
           </div>
         </div>
-        <button type="button" class="out" (click)="signOut($event)">Sign out</button>
+        <button type="button" class="out" (click)="askSignOut($event)">Sign out</button>
       </aside>
+      @if (confirmOut()) {
+        <pl-sign-out-dialog [name]="auth.user()?.name ?? ''" (confirmed)="signOut()" (cancelled)="confirmOut.set(false)" />
+      }
 
       <div class="main">
         <!-- A soft green essence behind the content: still, in the corners, never behind the cards' text. -->
@@ -170,11 +174,22 @@ export class AdminShell {
     void this.admin.refreshBadge();
   }
 
-  async signOut(event: Event): Promise<void> {
+  /** "Sign out?" first (Cancel or Continue). */
+  readonly confirmOut = signal(false);
+  private outButton: Element | null = null;
+
+  askSignOut(event: Event): void {
+    this.outButton = event.currentTarget as Element;
+    this.confirmOut.set(true);
+  }
+
+  async signOut(): Promise<void> {
+    this.confirmOut.set(false);
     await this.processing.run({
       title: 'Signing you out',
       detail: this.auth.user()?.name,
-      from: event,
+      // The loader grows out of the sidebar's Sign out button.
+      from: this.outButton,
       run: () => {
         this.auth.signOut();
         return this.router.navigateByUrl('/sign-in');
