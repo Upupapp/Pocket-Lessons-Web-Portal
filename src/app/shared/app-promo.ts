@@ -4,7 +4,7 @@ import { API_URL } from '../core/api';
 import { session } from '../core/storage';
 
 /**
- * The tester app page lives on the staging server itself (password-protected, see the backend's deploy/Caddyfile),
+ * The tester app page lives on the staging server itself (open to testers, see the backend's deploy/Caddyfile),
  * so the link uses the server's address: it works from the server's own portal and from Netlify alike.
  */
 export const APP_PAGE = appPage(API_URL);
@@ -52,7 +52,7 @@ export function appPage(apiUrl: string): string {
               and children keep learning even without signal.
             </p>
             <ul>
-              <li>Open the link on an <b>Android phone</b> and enter the tester password.</li>
+              <li>Open the link on an <b>Android phone</b> and tap <b>Download the app</b>.</li>
               <li>This is the <b>staging</b> app: use test accounts only.</li>
             </ul>
             <div class="actions">
