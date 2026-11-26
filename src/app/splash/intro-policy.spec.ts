@@ -21,4 +21,9 @@ describe('when the intro plays', () => {
     expect(playsIntro('/sign-in', true, true)).toBe(false); // sent back to their work
     expect(playsIntro('/setup/abc', true, false)).toBe(false);
   });
+
+  it('never plays on the local app download page, not even on the first load', () => {
+    expect(playsIntro('/get-the-app', false, false)).toBe(false);
+    expect(playsIntro('/get-the-app', true, true)).toBe(false);
+  });
 });

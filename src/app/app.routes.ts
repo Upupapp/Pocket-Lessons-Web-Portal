@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { LOCAL_ONLY_ROUTES } from './local-only.routes';
 import { adminGuard, signedInGuard, signedOutGuard, startRedirect } from './core/guards';
 import { AdminShell } from './layout/admin-shell';
 import { Shell } from './layout/shell';
@@ -73,5 +74,7 @@ export const routes: Routes = [
       { path: 'audit', title: T('Audit log'), loadComponent: () => import('./pages/admin/audit').then((m) => m.AdminAuditPage) },
     ],
   },
+  // Local server only (ng serve), such as /get-the-app. Empty in the Netlify build.
+  ...LOCAL_ONLY_ROUTES,
   { path: '**', redirectTo: '' },
 ];
