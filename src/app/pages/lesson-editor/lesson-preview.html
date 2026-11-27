@@ -64,7 +64,7 @@
                 <div class="chips">
                   <span><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2.4" /><path d="M12 9v4l2.5 2M9 2.5h6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none" /></svg>{{ lesson().minutes }} min</span>
                   <span>{{ lesson().pages.length }} pahina</span>
-                  @if (questionCount()) { <span>{{ questionCount() }} tanong</span> }
+                  @if (questionCount() + setQuestions()) { <span>{{ questionCount() + setQuestions() }} tanong</span> }
                 </div>
               </div>
               <button type="button" class="cta" (click)="begin()">SIMULAN</button>
@@ -80,6 +80,17 @@
             </div>
 
             @if (onPage(); as p) {
+             @if (p.blocks?.length) {
+              <!-- A page built from blocks (AHA Math lessons), as on the phone. Re-created for every page. -->
+              @for (pid of [p.id]; track pid) {
+                @if (setOf(p); as s) {
+                  <pl-child-set [block]="s" [hero]="icon(theme().hero)" (finished)="next()" />
+                } @else {
+                  <div class="body"><pl-child-page [page]="p" [size]="textSize()" /></div>
+                  <div class="foot"><button type="button" class="cta" (click)="next()">TULOY</button></div>
+                }
+              }
+             } @else {
               <div class="body">
                 <div class="pic" [class.small]="words().length > 20">
                   @if (p.pictureId) {
@@ -94,11 +105,14 @@
                     <span class="no-pic">No picture yet</span>
                   }
                 </div>
-                <p class="words" lang="fil" [class.long]="words().length > 26">
-                  @for (w of words(); track $index) {
-                    <span [class.lit]="$index === litWord()" [class.read]="$index < litWord()">{{ w }}</span>{{ ' ' }}
-                  }
-                </p>
+                <!-- As on the phone: the lesson font on pad-paper lines, at the level's fixed size, all in full ink. -->
+                <div class="paper">
+                  <p class="words" lang="fil" [style.--fs]="textSize()">
+                    @for (w of words(); track $index) {
+                      <span [class.lit]="$index === litWord()">{{ w }}</span>{{ ' ' }}
+                    }
+                  </p>
+                </div>
                 <div class="listen">
                   <button type="button" class="speaker" (click)="playPage()" [disabled]="!p.audioId" [attr.aria-label]="playing() === 'page' ? 'Playing' : 'Play teacher voice'">
                     @if (playing() === 'page') {
@@ -113,6 +127,7 @@
               <div class="foot">
                 <button type="button" class="cta" (click)="next()">TULOY</button>
               </div>
+             }
             } @else if (onActivity(); as a) {
               <div class="body">
                 <p class="kicker">{{ isCheckpoint() ? 'Tanong ' + (step()!.n + 1) + ' ng ' + questionCount() : 'Pakinggan at piliin' }}</p>

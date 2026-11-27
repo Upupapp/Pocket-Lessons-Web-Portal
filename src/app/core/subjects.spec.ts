@@ -21,8 +21,9 @@ describe('subject worlds', () => {
     const v = themeVars(subjectOf('english'));
     expect(v['--c-teal']).toBe('#2B5FC1');
     expect(v['--c-tint']).toBe('#EAF1FD');
-    expect(v['--c-title']).toContain('Fraunces');
-    expect(themeVars(subjectOf('pagbasa'))['--c-title']).toContain('Baloo 2');
+    // One lesson font for every world, as on the phone.
+    expect(v['--c-title']).toContain('Playpen Sans PL');
+    expect(themeVars(subjectOf('pagbasa'))['--c-title']).toBe(v['--c-title']);
   });
 });
 

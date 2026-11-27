@@ -1,8 +1,9 @@
 import { Component, ElementRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { ImportDraftData } from '../core/import-draft';
 import { ParsedLesson, parseLessonText } from '../core/lesson-import';
-import { formatBytes, plural } from '../core/models';
-import { pdfToText } from '../core/pdf-text';
+import { MathLesson, parseMathLesson } from '../core/math-import';
+import { formatBytes, plural, uid } from '../core/models';
+import { pdfToItems, pdfToText } from '../core/pdf-text';
 import { ProcessError, Processing } from '../core/processing';
 import { SubjectKey, subjectIcon, subjectOf } from '../core/subjects';
 import { SubjectPicker } from './subject-picker';
@@ -61,7 +62,11 @@ import { SubjectPicker } from './subject-picker';
             }
           </label>
           @if (error()) { <p class="error-text" role="alert">{{ error() }}</p> }
-          <p class="small muted finds">The portal looks for the <strong>Story</strong> (title, author, paragraphs), <strong>Comprehension Questions</strong> with A to D choices, and the <strong>Key to Correction</strong>, as in the AHA lesson template.</p>
+          @if (subject() === 'math') {
+            <p class="small muted finds">The portal reads the <strong>AHA Math lesson table</strong>: Magic Word, Bata Break, Kwentalakayan, #OOTD and Pabaong Ensayo, with each <strong>Key to Correction</strong>. Bullets, steps and number lists become their own parts, and the phone checks every answer.</p>
+          } @else {
+            <p class="small muted finds">The portal looks for the <strong>Story</strong> (title, author, paragraphs), <strong>Comprehension Questions</strong> with A to D choices, and the <strong>Key to Correction</strong>, as in the AHA lesson template. AHA Math lesson tables are read too.</p>
+          }
           <div class="actions">
             <button type="button" class="btn btn-ghost" (click)="step.set('subject')">Back</button>
           </div>
@@ -173,6 +178,7 @@ export class ImportDialog {
     this.busy.set(true);
     let text = '';
     let parsed = null as ParsedLesson | null; // filled in by a step below
+    let math = null as MathLesson | null; // an AHA Math lesson (the section table), found in the first step
     const r = await this.processing.run({
       title: 'Reading your lesson file',
       detail: file.name,
@@ -183,13 +189,21 @@ export class ImportDialog {
           label: isPdf ? 'Opening the PDF' : 'Opening the text file',
           detail: `${formatBytes(file.size)} · read in this browser, nothing is uploaded`,
           run: async () => {
-            text = isPdf ? await pdfToText(file) : await file.text();
+            if (isPdf) math = parseMathLesson(await pdfToItems(file), uid);
+            if (!math) text = isPdf ? await pdfToText(file) : await file.text();
           },
         },
         {
-          label: 'Finding the story, questions and answer key',
-          detail: 'As in the AHA lesson template',
+          label: 'Finding the lesson parts, questions and answer keys',
+          detail: () =>
+            math
+              ? `Math lesson: ${math.sections.filter((s) => s.found).length} sections, ${plural(math.questions, 'question')}, ${math.answered} answers in the keys`
+              : 'As in the AHA lesson template',
           run: () => {
+            if (math) {
+              if (!math.parts.length) throw new ProcessError('No lesson parts were found in this Math file. Check that it follows the AHA Math lesson table.');
+              return;
+            }
             if (!text.trim()) {
               throw new ProcessError('No text could be read from this file. It may be a scanned picture of the page: save the lesson from Word or Google Docs as PDF and upload that.');
             }
@@ -199,15 +213,21 @@ export class ImportDialog {
         },
         {
           label: 'Opening the review',
-          detail: () => (parsed ? `${parsed.title}: ${plural(parsed.paragraphs.length, 'paragraph')}, ${plural(parsed.questions.length, 'question')}` : ''),
+          detail: () =>
+            math
+              ? `${math.title}: ${plural(math.parts.length, 'short lesson')}`
+              : parsed
+                ? `${parsed.title}: ${plural(parsed.paragraphs.length, 'paragraph')}, ${plural(parsed.questions.length, 'question')}`
+                : '',
           run: () => {
             // The review page opens under the loader.
             this.dlg()?.nativeElement.close();
-            this.done.emit({ subject: this.subject()!, parsed: parsed!, fileName: this.fileName() });
+            const subject = this.subject()!;
+            this.done.emit(math ? { subject, math, fileName: this.fileName() } : { subject, parsed: parsed!, fileName: this.fileName() });
           },
         },
       ],
-      done: () => ({ title: 'Lesson file read', detail: parsed?.title, quiet: true }),
+      done: () => ({ title: 'Lesson file read', detail: math?.title ?? parsed?.title, quiet: true }),
       errorText: (err) => {
         if (err instanceof ProcessError) return err.message;
         console.error(err);

@@ -6,6 +6,7 @@ import { ApiError, apiMode } from '../../core/api';
 import { DataService } from '../../core/data.service';
 import {
   Activity,
+  Block,
   LANGUAGES,
   LEVELS,
   LEVEL_HINT,
@@ -26,6 +27,8 @@ import { MediaImage } from '../../shared/media-image';
 import { shrinkPicture } from '../../shared/picture';
 import { Recording, VoiceRecorder } from '../../shared/voice-recorder';
 import { LessonPreview } from './lesson-preview';
+import { BlockEditor } from './block-editor';
+import { blocksText } from '../../core/math-import';
 import { SUBJECTS, SubjectKey, isSubject, subjectOf } from '../../core/subjects';
 import { CHECK_LABELS, CheckKey, IF_SKIPPED, Issue, failingChecks, lessonIssues, suggestQuestions, suggestSubject, suggestTitle } from '../../core/lesson-checks';
 import { FormDialog } from '../../shared/form-dialog';
@@ -34,7 +37,7 @@ import { RecordAll } from './record-all';
 
 @Component({
   selector: 'pl-lesson-editor',
-  imports: [FormsModule, DatePipe, RouterLink, VoiceRecorder, MediaImage, LessonPreview, MissingPanel, RecordAll, FormDialog],
+  imports: [FormsModule, DatePipe, RouterLink, VoiceRecorder, MediaImage, LessonPreview, MissingPanel, RecordAll, FormDialog, BlockEditor],
   templateUrl: './lesson-editor.html',
   styleUrl: './lesson-editor.scss',
   // While the "What's missing" panel is open on a wide screen, the editor moves aside so nothing is hidden under it.
@@ -96,6 +99,8 @@ export class LessonEditor {
   readonly prevLesson = computed(() => this.path()[this.position() - 1]);
   readonly nextLesson = computed(() => this.path()[this.position() + 1]);
   readonly isCheckpoint = computed(() => this.lesson()?.kind === 'checkpoint');
+  /** A Math lesson: its numbered activities are inside the pages. */
+  readonly hasSets = computed(() => !!this.lesson()?.pages.some((p) => p.blocks?.some((b) => b.type === 'set')));
   readonly theme = computed(() => subjectOf(this.lesson()?.subject));
   readonly passNeeded = computed(() => Math.ceil((this.lesson()?.activities.length ?? 0) * PASS_MARK));
   readonly recordedQuestions = computed(() => this.lesson()?.activities.filter((a) => a.audioId).length ?? 0);
@@ -404,6 +409,11 @@ export class LessonEditor {
     // Editing a published lesson starts a new draft version; families keep the published one until you publish again.
     this.lesson.set({ ...current, ...changes, status: 'draft' });
     this.scheduleSave();
+  }
+
+  /** A page built from blocks: its plain text follows the blocks (for the checks and the computer voice). */
+  patchBlocks(index: number, blocks: Block[]): void {
+    this.patchPage(index, { blocks, text: blocksText(blocks) });
   }
 
   patchPage(index: number, changes: Partial<LessonPage>): void {

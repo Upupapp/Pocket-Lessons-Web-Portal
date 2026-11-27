@@ -141,6 +141,7 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
 
 .row-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .cv-pill { justify-self: start; }
+.sec-pill { justify-self: start; }
 .looks-right { margin-left: 4px; }
 .checks li.need .tick { background: var(--red-bg); color: var(--red); }
 .need-tag { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: .04em; }

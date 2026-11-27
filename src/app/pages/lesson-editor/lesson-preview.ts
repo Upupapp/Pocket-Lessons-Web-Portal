@@ -1,9 +1,10 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
-import { Activity, Lesson, LessonPage, PASS_MARK } from '../../core/models';
+import { Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Activity, Lesson, LessonPage, PASS_MARK, SetBlock } from '../../core/models';
 import { media } from '../../core/storage';
+import { ChildPage, ChildSet } from '../../shared/child-page';
 import { Coach, CoachMood } from '../../shared/coach';
 import { MediaImage } from '../../shared/media-image';
-import { ensureSubjectFont, subjectIcon, subjectOf, themeVars } from '../../core/subjects';
+import { lessonTextSize, subjectIcon, subjectOf, themeVars } from '../../core/subjects';
 
 type Screen = 'start' | 'step' | 'finish';
 type Feedback = 'good' | 'retry' | 'reveal' | null;
@@ -21,7 +22,7 @@ interface Result {
  */
 @Component({
   selector: 'pl-lesson-preview',
-  imports: [MediaImage, Coach],
+  imports: [MediaImage, Coach, ChildPage, ChildSet],
   templateUrl: './lesson-preview.html',
   styleUrl: './lesson-preview.scss',
 })
@@ -73,6 +74,10 @@ export class LessonPreview {
     return Math.round((done / total) * 100);
   });
   readonly words = computed(() => (this.onPage()?.text ?? '').split(/\s+/).filter(Boolean));
+  /** Numbered-activity questions inside the pages (AHA Math lessons). */
+  readonly setQuestions = computed(() => this.lesson().pages.reduce((n, p) => n + (p.blocks ?? []).reduce((m, b) => m + (b.type === 'set' ? b.items.length : 0), 0), 0));
+  /** Story text size on the phone for this lesson's level (fixed; long pages get more rows, never smaller text). */
+  readonly textSize = computed(() => lessonTextSize(this.lesson().level));
   readonly wideChoices = computed(() => (this.onActivity()?.choices ?? []).some((c) => c.length > 14));
 
   readonly position = computed(() => this.path().findIndex((l) => l.id === this.lesson().id));
@@ -131,6 +136,20 @@ export class LessonPreview {
             title: 'Celebrate, then save what to review',
             body: 'The learning-day sun fills (missed days never take it away). Missed practice words come back after 1, 3 and 7 days. Results wait on the phone until the next hotspot visit.',
           };
+    const page = this.onPage();
+    const set = page ? this.setOf(page) : null;
+    if (set)
+      return {
+        tag: set.title,
+        title: set.answer === 'number' ? 'The child taps the number on the number pad' : set.answer === 'words' ? 'The child builds the words by tapping tiles' : 'The child picks one of three answers',
+        body: `${set.items.length} numbered items, one at a time, numbered like the paper worksheet. The phone checks each answer against your key (capitals, spaces around hyphens and "and" don't count). A wrong first try gets a second try; then the answer is shown kindly. At the end the child sees the checked paper.`,
+      };
+    if (page?.blocks?.length)
+      return {
+        tag: page.section || 'Lesson page',
+        title: 'Lists and steps, one clear part at a time',
+        body: 'Word cards, bullet points, number cards and the step path are drawn by the app in the lesson font, on pad-paper lines. Your recorded voice is optional on these pages.',
+      };
     if (this.onPage())
       return {
         tag: this.isCheckpoint() ? 'Opening' : 'Read along',
@@ -166,8 +185,11 @@ export class LessonPreview {
   constructor() {
     afterNextRender(() => this.dlg().nativeElement.showModal());
     inject(DestroyRef).onDestroy(() => this.stopAudio());
-    // The world's title font loads only when a lesson in that world is previewed.
-    effect(() => ensureSubjectFont(this.theme()));
+  }
+
+  /** The numbered activity on a page, if it has one. */
+  setOf(page: LessonPage): SetBlock | null {
+    return (page.blocks ?? []).find((b): b is SetBlock => b.type === 'set') ?? null;
   }
 
   /** A click on the dimmed area around the panel closes the preview (Esc does too). */

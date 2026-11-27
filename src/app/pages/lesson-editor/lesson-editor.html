@@ -140,6 +140,14 @@
                   <button type="button" class="icon danger" (click)="removePage(i)" [disabled]="l.pages.length === 1" aria-label="Delete page">✕</button>
                 </div>
               </div>
+              @if (p.blocks?.length) {
+                <!-- A page built from blocks (AHA Math lessons): each part in its own box. Voice is optional. -->
+                <div class="page-main">
+                  @if (p.section) { <span class="pill pill-teal sec-pill">Section: {{ p.section }}</span> }
+                  <pl-block-editor [blocks]="p.blocks!" (changed)="patchBlocks(i, $event)" />
+                  <pl-voice-recorder [audioId]="p.audioId" label="Record this page (optional)" (recorded)="onRecorded(i, $event)" (removed)="onRecordingRemoved(i)" />
+                </div>
+              } @else {
               <div class="page-body">
                 <div class="pic">
                   @if (p.pictureId) {
@@ -173,6 +181,7 @@
                   }
                 </div>
               </div>
+              }
             </li>
           }
         </ol>
@@ -184,7 +193,8 @@
         </div>
       </section>
 
-      <!-- Tap-only activities (WEB-10) -->
+      <!-- Tap-only activities (WEB-10). Math lessons keep their numbered activities inside the pages above. -->
+      @if (!hasSets() || l.activities.length) {
       <section class="card" id="sec-acts">
         <div class="section-head">
           <div>
@@ -240,8 +250,9 @@
           }
         </div>
       </section>
+      }
 
-      @if (!isCheckpoint()) {
+      @if (!isCheckpoint() && !hasSets()) {
         <!-- Spaced review words (UpUp proposal) -->
         <section class="card">
           <h2>Practice words</h2>

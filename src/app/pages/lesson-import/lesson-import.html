@@ -10,7 +10,163 @@
   <pl-import-dialog [startSubject]="dialogSubject()" (closed)="dialogClosed()" (done)="use($event)" />
 }
 
-@if (!parsed()) {
+@if (math(); as m) {
+  <!-- ================= AHA MATH LESSON ================= -->
+  <div class="grid">
+    <div class="col">
+      <section class="card found">
+        <div class="found-head">
+          <pl-coach mood="cheer" [size]="76" />
+          <div>
+            <p class="small muted">Math lesson found in {{ fileName() }}</p>
+            <label class="sr-only" for="unit-title">Lesson title</label>
+            <input id="unit-title" class="title" [ngModel]="title()" (ngModelChange)="title.set($event)" placeholder="Lesson title" maxlength="60" />
+            <p class="muted">{{ m.label || 'Math' }}@if (m.lessonNo) { · Lesson {{ m.lessonNo }} }</p>
+          </div>
+        </div>
+        <div class="stats">
+          <div><strong>{{ m.parts.length }}</strong><span>short lessons</span></div>
+          <div><strong>{{ m.questions }}</strong><span>questions</span></div>
+          <div [class.warn]="m.answered < m.questions"><strong>{{ m.answered }} / {{ m.questions }}</strong><span>answers in the keys</span></div>
+          <div><strong>{{ m.verified }} ✓</strong><span>checked by the portal</span></div>
+        </div>
+        <ul class="sections">
+          @for (s of m.sections; track s.name) {
+            <li [class.missing]="!s.found">
+              <span class="tick" aria-hidden="true">{{ s.found ? '✓' : '!' }}</span>
+              <strong>{{ s.name }}</strong>
+              <span class="small muted">
+                @if (s.found) {
+                  {{ s.pages }} {{ s.pages === 1 ? 'page' : 'pages' }}@if (s.questions) { · {{ s.answered }}/{{ s.questions }} answers }
+                } @else {
+                  Not in the file
+                }
+              </span>
+            </li>
+          }
+        </ul>
+        @for (w of m.warnings; track w) { <p class="warning" role="alert">{{ w }}</p> }
+      </section>
+
+      <section class="card subject">
+        <div class="subject-head">
+          <div>
+            <h2>Subject</h2>
+            <p class="small muted">Children will find these lessons in this world, with its colours and pictures.</p>
+          </div>
+          <div class="subject-now">
+            <span class="chosen" [style.--main]="theme().main" [style.--tint]="theme().tint" [style.--deep]="theme().deep">
+              <img [src]="'subjects/' + theme().hero + '.webp'" alt="" width="22" height="22" />{{ theme().childEn }} · {{ theme().world }}
+            </span>
+            <button type="button" class="btn btn-ghost btn-sm" (click)="changing.set(!changing())" [attr.aria-expanded]="changing()">{{ changing() ? 'Done' : 'Change' }}</button>
+          </div>
+        </div>
+        @if (subject() !== 'math') {
+          <p class="mismatch" role="status">
+            This file is an AHA Math lesson. Is it for the Math world?
+            <button type="button" class="btn btn-ghost btn-sm" (click)="subject.set('math')">Switch to Math</button>
+          </p>
+        }
+        @if (changing()) {
+          <pl-subject-picker [value]="subject()" label="Subject of this lesson" (picked)="subject.set($event)" />
+        }
+      </section>
+
+      <section class="card">
+        <h2>Settings</h2>
+        <div class="settings">
+          <label class="field">
+            <span>Level</span>
+            <select class="select" [ngModel]="level()" (ngModelChange)="level.set($event)">
+              @for (lv of levels; track lv) { <option [value]="lv">{{ lv }}</option> }
+            </select>
+            <span class="hint">Sets the size of the words on the phone: Beginner and Letter are biggest.</span>
+          </label>
+          <label class="field">
+            <span>Language</span>
+            <select class="select" [ngModel]="language()" (ngModelChange)="language.set($event)">
+              @for (lang of languages; track lang) { <option [value]="lang">{{ lang }}</option> }
+            </select>
+            <span class="hint">The lesson mixes Filipino and English: choose the one used for the instructions.</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" [style.--path]="theme().main" [style.--path-on]="theme().on">
+        <h2>The learning path</h2>
+        <p class="small muted">One short lesson for each part of the lesson routine. Children see one circle at a time.</p>
+        <ol class="path">
+          @for (part of m.parts; track part.name; let i = $index) {
+            <li class="node">
+              <span class="dot" [class.alt]="i % 2 === 1">{{ i + 1 }}</span>
+              <div class="node-body">
+                <div class="node-top">
+                  <strong>{{ title() || m.title }} · {{ part.name }}</strong>
+                  <span class="pill pill-grey">{{ part.pages.length }} pages@if (part.questions) { · {{ part.questions }} questions }</span>
+                </div>
+                <ol class="mpages">
+                  @for (pg of part.pages; track pg.id) {
+                    <li><span class="sec">{{ pg.section }}</span>{{ pageParts(pg) }}</li>
+                  }
+                </ol>
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+
+      <section class="card">
+        <h2>Activities and answer keys</h2>
+        <p class="small muted">Numbered as on the paper worksheet. The phone checks each answer against the key; capitals, spaces around hyphens and "and" don't count as mistakes.</p>
+        @for (s of mathSets(); track $index) {
+          <div class="mset">
+            <div class="mset-head">
+              <strong>{{ s.title }}</strong>
+              <span class="pill pill-teal">{{ answerLabel(s.answer) }}</span>
+            </div>
+            <p class="instr">{{ s.instruction }}</p>
+            <table class="keys">
+              <thead><tr><th>No.</th><th>Shown to the child</th><th>Correct answer</th><th>Also accept</th></tr></thead>
+              <tbody>
+                @for (it of s.items; track it.n) {
+                  <tr [class.empty]="!it.answer">
+                    <td class="n">{{ it.n }}.</td>
+                    <td><b>{{ it.prompt }}</b></td>
+                    <td>{{ it.answer || 'No answer in the key' }}</td>
+                    <td class="muted">{{ (it.accept ?? []).join(' · ') || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+
+      @if (m.leftOut.length) {
+        <section class="card">
+          <h2>Left out: for the classroom only</h2>
+          <p class="small muted">Timers and self-scoring lines stay on paper. On the phone there are no timers and the answers are checked automatically.</p>
+          <ul class="left-out">
+            @for (l of m.leftOut; track $index) { <li>{{ l }}</li> }
+          </ul>
+        </section>
+      }
+    </div>
+
+    <aside class="col side">
+      <section class="card">
+        <h2>What happens next</h2>
+        <ol class="next">
+          <li><b>1</b><span>The {{ m.parts.length }} lessons are saved as <strong>drafts</strong>. Nothing reaches families yet.</span></li>
+          <li><b>2</b><span>Check the pages and the answer keys in the editor. Recording your voice is optional.</span></li>
+          <li><b>3</b><span>Use <strong>Preview as the child</strong>, then publish.</span></li>
+        </ol>
+        <button type="button" class="btn btn-primary full" (click)="createMath($event)" [disabled]="!canCreate()">Create {{ m.parts.length }} lessons</button>
+        <button type="button" class="btn btn-ghost full" (click)="reset()">Choose another file</button>
+      </section>
+    </aside>
+  </div>
+} @else if (!parsed()) {
   <p class="muted waiting">Choose the subject, then the lesson file.</p>
 } @else {
   @if (parsed(); as p) {

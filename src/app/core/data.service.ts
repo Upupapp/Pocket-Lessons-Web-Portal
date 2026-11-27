@@ -18,6 +18,7 @@ import {
   uid,
 } from './models';
 import { UnitPlan } from './lesson-import';
+import type { MathLesson } from './math-import';
 import { ProcessError } from './processing';
 import { baselineDay, baselineLevel, neverChecked, sampleHistory } from './sample-history';
 import type { SubjectKey } from './subjects';
@@ -485,7 +486,7 @@ export class DataService {
 
   packBytes(lesson: Lesson): number {
     const text = new TextEncoder().encode(
-      JSON.stringify({ t: lesson.title, p: lesson.pages.map((p) => p.text), a: lesson.activities, r: lesson.reviewWords }),
+      JSON.stringify({ t: lesson.title, p: lesson.pages.map((p) => [p.text, p.blocks ?? []]), a: lesson.activities, r: lesson.reviewWords }),
     ).length;
     const voice = lesson.activities.reduce((sum, a) => sum + (a.audioBytes ?? 0), 0);
     return lesson.pages.reduce((sum, p) => sum + (p.audioBytes ?? 0) + (p.pictureBytes ?? 0), text + voice + PACK_OVERHEAD);
@@ -548,6 +549,41 @@ export class DataService {
       kind: 'checkpoint',
       reviewWords: [],
     });
+    this.saveUnits([unit, ...this.units()]);
+    this.saveLessons([...lessons, ...this.lessons()]);
+    this.remotePut(`/units/${unit.id}`, unit);
+    for (const l of lessons) this.remotePut(`/lessons/${l.id}`, l);
+    return unit;
+  }
+
+  /**
+   * Creates a unit from AHA's Math lesson file: one short phone lesson per part of the lesson routine
+   * (Magic Word and Bata Break, Kwentalakayan, #OOTD, Pabaong Ensayo), with every numbered activity and its key.
+   */
+  createMathUnit(info: Omit<Unit, 'id' | 'createdAt'>, math: MathLesson): Unit {
+    const now = new Date().toISOString();
+    const unit: Unit = { ...info, id: uid('unt'), createdAt: now };
+    const lessons: Lesson[] = math.parts.map((p, i) => ({
+      level: info.level,
+      language: info.language,
+      subject: info.subject,
+      status: 'draft' as const,
+      version: 1,
+      assignedLevels: [info.level],
+      classIds: this.defaultClassIds(),
+      createdAt: now,
+      updatedAt: now,
+      unitId: unit.id,
+      id: uid('lsn'),
+      title: p.title,
+      objective: `${p.name}, from "${info.title}"${p.questions ? `: ${p.questions} questions the phone checks against your key` : ''}.`,
+      minutes: Math.max(5, Math.min(15, Math.ceil(p.pages.length / 2) + Math.ceil(p.questions / 3))),
+      pages: p.pages.map((pg) => ({ ...structuredClone(pg), id: uid('pg') })),
+      activities: [],
+      unitIndex: i,
+      kind: 'lesson' as const,
+      reviewWords: [],
+    }));
     this.saveUnits([unit, ...this.units()]);
     this.saveLessons([...lessons, ...this.lessons()]);
     this.remotePut(`/units/${unit.id}`, unit);

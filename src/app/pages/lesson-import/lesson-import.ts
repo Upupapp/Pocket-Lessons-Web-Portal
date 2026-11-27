@@ -11,12 +11,13 @@ import {
   planUnit,
   suggestedLessonCount,
 } from '../../core/lesson-import';
-import { LANGUAGES, LEVELS, LEVEL_HINT, Level, PASS_MARK, Unit } from '../../core/models';
+import { AnswerType, BlockType, LANGUAGES, LEVELS, LEVEL_HINT, LessonPage, Level, PASS_MARK, Unit, plural } from '../../core/models';
+import { ANSWER_TYPES, MathLesson, setsOf } from '../../core/math-import';
 import { apiMode } from '../../core/api';
 import { Processing } from '../../core/processing';
 import { Coach } from '../../shared/coach';
 import { SubjectPicker } from '../../shared/subject-picker';
-import { SubjectKey, detectLanguage, ensureSubjectFont, subjectOf, suggestSubject } from '../../core/subjects';
+import { SubjectKey, detectLanguage, subjectOf, suggestSubject } from '../../core/subjects';
 
 /**
  * Import a lesson file (WEB-06 extension): the portal reads the story, questions and answer key,
@@ -48,6 +49,13 @@ export class LessonImport {
   readonly changing = signal(false);
 
   readonly parsed = signal<ParsedLesson | null>(null);
+  /** An AHA Math lesson (the section table with its keys), read instead of a story. */
+  readonly math = signal<MathLesson | null>(null);
+  readonly mathSets = computed(() => {
+    const m = this.math();
+    return m ? setsOf(m) : [];
+  });
+  readonly answerTypes = ANSWER_TYPES;
   readonly title = signal('');
   readonly level = signal<Level>('Story');
   readonly language = signal<string>('Filipino');
@@ -71,7 +79,7 @@ export class LessonImport {
     return p ? planUnit(p, this.count(), this.title().trim() || p.title) : null;
   });
   readonly passNeeded = computed(() => Math.ceil((this.parsed()?.questions.length ?? 0) * PASS_MARK));
-  readonly canCreate = computed(() => !!this.parsed()?.paragraphs.length && !!this.title().trim() && !!this.subject());
+  readonly canCreate = computed(() => (!!this.parsed()?.paragraphs.length || !!this.math()?.parts.length) && !!this.title().trim() && !!this.subject());
 
   private readonly drafts = inject(ImportDraft);
 
@@ -84,9 +92,21 @@ export class LessonImport {
 
   /** The file the pop-ups read, with the subject chosen first. */
   use(d: ImportDraftData): void {
-    const parsed = d.parsed;
     this.dialogOpen.set(false);
     this.fileName.set(d.fileName);
+    if (d.math) {
+      // AHA Math lesson: no splitting to choose; the parts follow the lesson routine.
+      this.parsed.set(null);
+      this.math.set(d.math);
+      this.title.set(d.math.title);
+      this.subject.set(d.subject);
+      this.changing.set(false);
+      this.level.set('Paragraph');
+      this.language.set('Filipino');
+      return;
+    }
+    const parsed = d.parsed;
+    this.math.set(null);
     this.parsed.set(parsed);
     this.title.set(parsed.title);
     this.subject.set(d.subject);
@@ -107,7 +127,68 @@ export class LessonImport {
   /** Closing the pop-ups without a file goes back to the lessons. */
   dialogClosed(): void {
     this.dialogOpen.set(false);
-    if (!this.parsed()) void this.router.navigateByUrl('/app/lessons');
+    if (!this.parsed() && !this.math()) void this.router.navigateByUrl('/app/lessons');
+  }
+
+  /** Creates the Math unit: one draft lesson per part of the routine, with every activity and its key. */
+  async createMath(event?: Event): Promise<void> {
+    const math = this.math();
+    const subject = this.subject();
+    if (!math || !subject || !this.canCreate()) return;
+    const title = this.title().trim();
+    const world = subjectOf(subject);
+    const n = math.parts.length;
+    let unit: Unit | undefined;
+    await this.processing.run({
+      title: 'Creating your lessons',
+      detail: `${title} · from ${this.fileName() || 'your file'}`,
+      from: event,
+      steps: [
+        { label: 'Setting up the lesson parts', detail: math.parts.map((p) => p.name).join(' · ') },
+        {
+          label: `Adding ${plural(math.questions, 'question')} with your answer keys`,
+          detail: `${math.answered} answers · ${math.verified} checked by the portal`,
+          run: () => {
+            unit ??= this.data.createMathUnit(
+              { title, level: this.level(), language: this.language(), sourceFile: this.fileName() || undefined, sourceLabel: math.label || undefined, subject },
+              { ...math, parts: math.parts.map((p) => ({ ...p, title: p.title.replace(/^[^·]+·/, `${title} ·`) })) },
+            );
+          },
+        },
+        {
+          label: apiMode ? 'Saving to the Pocket Lessons server' : 'Saving in this browser',
+          detail: apiMode ? `Sending ${n} lessons · keep this page open` : 'Kept on this computer for the preview',
+          run: () => this.data.flush(),
+        },
+        {
+          label: `Getting the ${world.childEn} world ready`,
+          detail: `${world.world} · colours and pictures`,
+          run: async () => {
+            await this.router.navigate(['/app/lessons'], { queryParams: { unit: unit!.id } });
+          },
+        },
+      ],
+      done: { title: `${n} lessons created`, detail: `${title} · ${world.childEn}` },
+    });
+  }
+
+  /** What a page of the Math lesson is made of, in the teacher's words. */
+  pageParts(page: LessonPage): string {
+    const names: Record<BlockType, string> = {
+      text: 'Text',
+      route: 'Lesson route',
+      terms: 'Word cards',
+      bullets: 'Bullet points',
+      steps: 'Step path',
+      numbers: 'Number cards',
+      examples: 'Worked examples',
+      set: 'Activity',
+    };
+    return [...new Set((page.blocks ?? []).map((b) => (b.type === 'set' ? `${b.title} · ${plural(b.items.length, 'question')}` : names[b.type])))].join(' + ');
+  }
+
+  answerLabel(key: AnswerType): string {
+    return ANSWER_TYPES.find((a) => a.key === key)?.label ?? key;
   }
 
   /** "Choose another file": the file pop-up again, keeping the subject. */
@@ -162,7 +243,6 @@ export class LessonImport {
           label: `Getting the ${world.childEn} world ready`,
           detail: `${world.world} · colours and pictures`,
           run: async () => {
-            ensureSubjectFont(world);
             await this.router.navigate(['/app/lessons'], { queryParams: { unit: unit!.id } });
           },
         },

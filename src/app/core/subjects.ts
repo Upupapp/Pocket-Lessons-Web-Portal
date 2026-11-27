@@ -75,33 +75,28 @@ export function themeVars(s: SubjectTheme): Record<string, string> {
     '--c-tint': s.tint,
     '--c-pop': s.pop,
     '--c-soft': mix(s.main, '#ffffff', 0.86),
-    '--c-title': `"${s.font}", ${s.font === 'Fraunces' ? 'Georgia, serif' : 'system-ui, sans-serif'}`,
+    // Every world uses the one lesson font, as on the phone; worlds differ by colour and pictures.
+    '--c-title': LESSON_FONT,
   };
 }
 
-// ---------- title fonts, loaded only when a world is shown ----------
+/** The lesson font on the child's phone (Playpen Sans, served from /fonts, see styles.scss). */
+export const LESSON_FONT = '"Playpen Sans PL", Andika, system-ui, sans-serif';
 
-const FONT_QUERY: Record<string, string> = {
-  'Baloo 2': 'Baloo+2:wght@700',
-  Andika: 'Andika:wght@700',
-  Fredoka: 'Fredoka:wght@600',
-  Lexend: 'Lexend:wght@700',
-  Nunito: 'Nunito:wght@800',
-  'Lilita One': 'Lilita+One',
-  Grandstander: 'Grandstander:wght@700',
-  'Exo 2': 'Exo+2:wght@700',
-};
-const loaded = new Set<string>();
-
-/** Loads a world's title font from Google Fonts the first time it is needed (Fraunces is always loaded). */
-export function ensureSubjectFont(s: SubjectTheme): void {
-  const q = FONT_QUERY[s.font];
-  if (!q || loaded.has(q) || typeof document === 'undefined') return;
-  loaded.add(q);
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?family=${q}&display=swap`;
-  document.head.appendChild(link);
+/** Story text size on the phone for a lesson level, in phone points (the preview scales it with the phone). */
+export function lessonTextSize(level: string | null | undefined): number {
+  switch ((level ?? '').toLowerCase().trim()) {
+    case 'beginner':
+    case 'letter':
+      return 40;
+    case 'word':
+      return 34;
+    case 'paragraph':
+    case '':
+      return 30;
+    default:
+      return 26; // Story and Short Story levels
+  }
 }
 
 // ---------- suggesting a subject for an uploaded file ----------

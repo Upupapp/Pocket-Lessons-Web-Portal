@@ -27,6 +27,7 @@
 .key.volume { top: 30%; height: 13%; }
 .screen {
   --c-teal: #146b60; --c-teal-d: #0d4d45; --c-sun: #f6cc59; --c-sun-d: #d9a92c;
+  --u: calc(var(--h, 760px) / 760); // one phone point, so sizes follow the phone as it scales
   position: relative; overflow: hidden; height: 100%; border-radius: calc(var(--h) * 34 / 760); background: var(--c-tint, #fff9ed);
   display: flex; flex-direction: column; font-family: var(--font); color: var(--ink);
 }
@@ -116,11 +117,23 @@
 .scene { width: 100%; height: 100%; display: block; }
 .pic.small { height: 112px; }
 .no-pic { position: absolute; right: 10px; bottom: 10px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .85); font-size: 11px; color: var(--muted); font-weight: 700; }
-.words { font-size: 24px; line-height: 1.5; font-weight: 700; text-align: center; }
-.words.long { font-size: 19px; text-align: left; }
-.words span { border-radius: 8px; padding: 0 3px; transition: background .12s, color .12s; }
+// Story text as the phone draws it: the lesson font at the level's size (phone points scaled with the phone), on
+// pad-paper lines (top line, dotted middle line, base line) placed from the font's metrics: 1.55 line height,
+// base line 1.19 em below the top of each row, x-height .54 em, cap height .764 em.
+.paper { flex: none; padding: 14px; border-radius: 22px; background: #fff; border: 2px solid var(--c-soft, var(--line)); }
+.words {
+  --row: 1.55em;
+  position: relative; margin: 0; text-align: left; color: var(--ink);
+  font: 400 calc(var(--h, 760px) * var(--fs, 30) / 760) / var(--row) var(--c-title, var(--font));
+  word-spacing: .12em;
+}
+.words::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: color-mix(in srgb, var(--c-teal) 40%, #fff);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='155' viewBox='0 0 18 155' preserveAspectRatio='none'%3E%3Cg stroke='%23000' stroke-width='1.2' vector-effect='non-scaling-stroke'%3E%3Cline x1='0' x2='18' y1='42.6' y2='42.6' vector-effect='non-scaling-stroke'/%3E%3Cline x1='0' x2='8' y1='65' y2='65' vector-effect='non-scaling-stroke' stroke-opacity='.8'/%3E%3Cline x1='0' x2='18' y1='119' y2='119' vector-effect='non-scaling-stroke'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 18px var(--row) repeat;
+}
+.words span { position: relative; border-radius: 8px; padding: 0 .08em; white-space: nowrap; transition: background .12s; } // whole words, as on the phone
 .words .lit { background: var(--c-sun); }
-.words .read { color: var(--c-teal); }
 .listen { display: flex; align-items: center; gap: 12px; justify-content: center; font-weight: 700; color: var(--muted); font-size: 14px; }
 .speaker {
   width: 58px; height: 58px; border-radius: 20px; border: 0; cursor: pointer; display: grid; place-items: center;
@@ -157,6 +170,8 @@
   &.dim { opacity: .5; }
 }
 .choices:not(.wide) .choice { flex-direction: column; justify-content: center; text-align: center; min-height: 92px; font-size: 18px; }
+// Questions and answer words in the lesson font, as on the phone.
+.bubble.q > span, .choice > span { font-family: var(--c-title, var(--font)); }
 
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 16px 18px 22px; display: grid; gap: 14px;

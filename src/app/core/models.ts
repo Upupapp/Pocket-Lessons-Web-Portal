@@ -37,9 +37,65 @@ export interface Learner {
   createdAt: string;
 }
 
+/** A word card on the phone: "Number Form" · "Symbol of a number." */
+export interface TermItem {
+  term: string;
+  meaning: string;
+  example?: string;
+}
+
+/** One step of a step path: the step in English, its Filipino line, and the numbers that go with it. */
+export interface StepItem {
+  text: string;
+  note?: string;
+  chips?: string[];
+}
+
+/** A number and its word name: "40 · forty". */
+export interface PairItem {
+  n: string;
+  word: string;
+}
+
+/** How the child answers a numbered activity: the number pad, word tiles, or 2 to 4 choices. */
+export type AnswerType = 'number' | 'words' | 'choice';
+
+/** One numbered item of an activity (numbered as on the paper worksheet) and its answer key. */
+export interface SetItem {
+  n: number;
+  /** What the child sees: "538", "Seventy-Eight", "Jasmine - Thirty-five Pesos". */
+  prompt: string;
+  /** The answer from the Key to Correction. Empty until the teacher fills it in. */
+  answer: string;
+  /** Other answers that also count as right, e.g. "five hundred thirty-eight" without "and". */
+  accept?: string[];
+}
+
+/**
+ * The parts a lesson page can be built from. The phone shows each in its own way: text on pad-paper lines,
+ * word cards, point cards, a step path, number cards, worked examples, or a numbered activity checked on the phone.
+ */
+export type Block =
+  | { type: 'text'; text: string }
+  | { type: 'route'; items: string[] }
+  | { type: 'terms'; items: TermItem[] }
+  | { type: 'bullets'; title?: string; items: string[] }
+  | { type: 'steps'; title?: string; items: StepItem[] }
+  | { type: 'numbers'; title?: string; items: PairItem[] }
+  | { type: 'examples'; title?: string; items: PairItem[] }
+  | { type: 'set'; title: string; instruction: string; answer: AnswerType; items: SetItem[]; cheer?: string; praise?: string };
+
+export type BlockType = Block['type'];
+export type SetBlock = Extract<Block, { type: 'set' }>;
+
 export interface LessonPage {
   id: string;
+  /** The page's words. For a page built from blocks, a plain-text copy of them (for checks and the computer voice). */
   text: string;
+  /** The part of AHA's lesson routine this page belongs to ("Magic Word", "Bata Break", "#OOTD", …). */
+  section?: string;
+  /** When set, the phone shows these blocks instead of the plain text. */
+  blocks?: Block[];
   /** IndexedDB keys for the recorded voice and the optional picture. */
   audioId?: string;
   audioBytes?: number;

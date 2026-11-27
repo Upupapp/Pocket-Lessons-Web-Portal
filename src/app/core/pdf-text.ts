@@ -15,6 +15,27 @@ const TERMINAL = /[.!?]["”’)]?$/;
 /** Icons and bullets with no letter in the PDF come out as invisible control characters (U+0000); they are dropped. */
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 
+/** Every piece of text on every page, with its position (for the Math lesson table, see math-import.ts). */
+export async function pdfToItems(file: Blob): Promise<import('./math-import').TextItem[][]> {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const pages = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const content = await (await doc.getPage(n)).getTextContent();
+    pages.push(
+      content.items
+        .filter((it) => 'str' in it)
+        .map((it) => {
+          const t = it as { str: string; transform: number[]; width: number; height: number };
+          return { str: t.str, x: t.transform[4], y: t.transform[5], w: t.width, h: t.height };
+        }),
+    );
+  }
+  await doc.destroy();
+  return pages;
+}
+
 export async function pdfToText(file: Blob): Promise<string> {
   const pdfjs = await import('pdfjs-dist');
   pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';

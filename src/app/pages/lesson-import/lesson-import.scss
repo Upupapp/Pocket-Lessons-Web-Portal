@@ -103,3 +103,24 @@ h2 { font-family: var(--serif); font-size: 21px; margin-bottom: 6px; }
 .subject-now { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mismatch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: 14px; font-weight: 700; }
 .waiting { padding: 40px 0; }
+
+// ---------- AHA Math lesson review ----------
+.sections { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.sections li { display: grid; grid-template-columns: 24px 1fr; gap: 0 8px; align-items: center; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.sections li .small { grid-column: 2; }
+.sections .tick { grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: var(--good-bg); color: var(--good); }
+.sections li.missing { background: var(--warn-bg); border-color: #ecd9a3; }
+.sections li.missing .tick { background: #fff; color: var(--warn); }
+.mpages { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; color: var(--ink-2); }
+.mpages .sec { display: inline-block; min-width: 128px; margin-right: 8px; font-weight: 700; color: var(--title); }
+.mset { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-top: 12px; }
+.mset-head { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.mset-head strong { font-size: 16px; color: var(--title); }
+.instr { margin: 4px 0 8px; font-size: 14px; color: var(--ink-2); }
+.keys { width: 100%; border-collapse: collapse; font-size: 14px; }
+.keys th { text-align: left; font-size: 12px; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.keys td { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.keys tr:last-child td { border-bottom: 0; }
+.keys td.n { width: 40px; font-weight: 700; color: var(--title); }
+.keys tr.empty td { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+.left-out { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13.5px; color: var(--muted); }

@@ -1,6 +1,11 @@
 // Pocket Lessons teacher portal: design tokens and shared building blocks.
 // Colours match the deck and prototypes: cream, deep teal, ink, sun-yellow.
 
+// The lesson font, the same file the child's phone uses: Playpen Sans (OFL), static, letter shuffling removed.
+// Served from this site so the child preview matches the phone exactly. Licence: /fonts/PlaypenSans-OFL.txt.
+@font-face { font-family: "Playpen Sans PL"; src: url("/fonts/PlaypenSans-Regular.woff") format("woff"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Playpen Sans PL"; src: url("/fonts/PlaypenSans-Bold.woff") format("woff"); font-weight: 700; font-display: swap; }
+
 :root {
   --cream: #fff9ed;
   --cream-2: #f6f1e5;

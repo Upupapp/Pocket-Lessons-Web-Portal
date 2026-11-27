@@ -104,6 +104,24 @@ export function lessonIssues(lesson: Lesson, bytes: number, canSendToClass: bool
       out.push({ id: `act-${a.id}`, check: 'activities', required: true, where: `${qWord} ${i + 1}${a.prompt.trim() ? ' · ' + snippet(a.prompt) : ''}`, what: problem, target: `act-${a.id}`, focus: 'input:not([type=radio])', fix: 'remove-question', index: i });
     }
   });
+  // Numbered activities (Math lessons): every item needs its question and its answer from the key.
+  lesson.pages.forEach((p, i) => {
+    for (const b of p.blocks ?? []) {
+      if (b.type !== 'set') continue;
+      const empty = b.items.filter((it) => !it.prompt.trim() || !it.answer.trim()).map((it) => it.n);
+      if (!b.items.length || empty.length) {
+        out.push({
+          id: `set-${p.id}-${b.title}`,
+          check: 'activities',
+          required: true,
+          where: `Page ${i + 1} · ${b.title}`,
+          what: b.items.length ? `No answer for item${empty.length > 1 ? 's' : ''} ${empty.join(', ')}` : 'No items yet',
+          target: `pg-${p.id}`,
+          focus: 'input',
+        });
+      }
+    }
+  });
   if (!(lesson.classIds ?? []).length) {
     out.push({ id: 'class', check: 'class', required: true, where: 'Send to classes', what: canSendToClass ? 'Choose at least one class' : 'You have no class yet', target: 'sec-classes', focus: 'input', fix: canSendToClass ? undefined : 'ask-admin' });
   }
